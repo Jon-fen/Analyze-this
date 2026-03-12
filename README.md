@@ -12,3 +12,4 @@ Optimiza tu CV para cualquier oferta laboral y supera los filtros automáticos A
 
 ---
 
+https://analyze-this.streamlit.app/ 
