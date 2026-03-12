@@ -32,11 +32,32 @@ st.markdown("""
 st.title("🎯 CV Optimizer ATS")
 st.markdown("Adapta tu CV a cualquier oferta laboral y supera los filtros automáticos.")
 
-# ─── API Key ──────────────────────────────────────────────────────────────────
+# ─── API Key: secrets primero, input manual como fallback ─────────────────────
+def get_api_key():
+    """Lee la API key desde st.secrets. Si no existe, retorna None."""
+    try:
+        return st.secrets["ANTHROPIC_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        return None
+
+_secret_key = get_api_key()
+
 with st.sidebar:
     st.header("⚙️ Configuración")
-    api_key = st.text_input("🔑 Anthropic API Key", type="password",
-                             help="Obtén tu key en console.anthropic.com")
+
+    if _secret_key:
+        # Key viene de Secrets → no mostrar campo, solo confirmación discreta
+        api_key = _secret_key
+        st.success("✅ API configurada")
+    else:
+        # Modo desarrollo / instancia propia sin secrets configurados
+        st.warning("⚠️ Ingresa tu API Key de Anthropic")
+        api_key = st.text_input(
+            "🔑 Anthropic API Key",
+            type="password",
+            help="Solo necesario si corres esta app en tu propia cuenta de Streamlit."
+        )
+
     st.markdown("---")
     st.markdown("**¿Cómo funciona?**")
     st.markdown("1. Sube tu CV (PDF o DOCX)")
