@@ -8,6 +8,8 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import io
 import json
+import requests
+from bs4 import BeautifulSoup
 
 # ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -46,16 +48,21 @@ with st.sidebar:
     st.header("⚙️ Configuración")
 
     if _secret_key:
-        # Key viene de Secrets → no mostrar campo, solo confirmación discreta
+        # Key viene de Secrets — sidebar limpio, sin mensajes al usuario
         api_key = _secret_key
-        st.success("✅ API configurada")
+        # Mostrar campo manual solo si el usuario ya encontró error de saldo
+        if st.session_state.get("api_credits_error"):
+            st.warning("El servicio está temporalmente sin saldo. Puedes usar tu propia API Key:")
+            user_key = st.text_input("🔑 Tu Anthropic API Key", type="password")
+            if user_key:
+                api_key = user_key
     else:
-        # Modo desarrollo / instancia propia sin secrets configurados
+        # Sin secrets configurados (instancia propia o desarrollo local)
         st.warning("⚠️ Ingresa tu API Key de Anthropic")
         api_key = st.text_input(
             "🔑 Anthropic API Key",
             type="password",
-            help="Solo necesario si corres esta app en tu propia cuenta de Streamlit."
+            help="Obtén tu key en console.anthropic.com"
         )
 
     st.markdown("---")
@@ -83,11 +90,16 @@ with col1:
 
 with col2:
     st.subheader("💼 Oferta Laboral")
+    job_url = st.text_input(
+        "🔗 Link de la oferta",
+        placeholder="https://www.linkedin.com/jobs/... o cualquier portal",
+        label_visibility="visible"
+    )
     job_description = st.text_area(
-        "Pega la descripción del puesto",
-        height=300,
-        placeholder="Pega aquí el texto completo de la oferta a la que postulas...\n\nMientras más completa, mejor será la optimización.",
-        label_visibility="collapsed"
+        "O pega el texto aquí",
+        height=215,
+        placeholder="Pega aquí el texto de la oferta...\nMientras más completa, mejor la optimización.",
+        label_visibility="visible"
     )
 
 # ─── Template selector ────────────────────────────────────────────────────────
@@ -108,6 +120,57 @@ template = st.radio("Selecciona template:", ["Clásico", "Moderno"],
                     horizontal=True, label_visibility="collapsed")
 
 st.markdown("---")
+
+# ─── Job URL scraper ──────────────────────────────────────────────────────────
+def scrape_job_url(url: str) -> str:
+    """Extrae el texto de una oferta laboral desde una URL."""
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+    except requests.exceptions.Timeout:
+        raise ValueError("El sitio tardó demasiado en responder. Intenta pegar el texto manualmente.")
+    except requests.exceptions.HTTPError as e:
+        raise ValueError(f"No se pudo acceder a la página ({e.response.status_code}). Pega el texto manualmente.")
+    except Exception:
+        raise ValueError("No se pudo acceder al link. Verifica la URL o pega el texto manualmente.")
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Remove noise: scripts, styles, nav, footer, headers, ads
+    for tag in soup(["script", "style", "nav", "footer", "header",
+                     "aside", "form", "noscript", "iframe"]):
+        tag.decompose()
+
+    # Try common job description containers first
+    selectors = [
+        {"class": lambda c: c and any(k in " ".join(c).lower() for k in
+                                       ["job-description", "description", "vacancy",
+                                        "posting", "details", "content"])},
+        {"id": lambda i: i and any(k in i.lower() for k in
+                                   ["job-description", "description", "details"])},
+    ]
+    text = ""
+    for sel in selectors:
+        block = soup.find(attrs=sel)
+        if block:
+            text = block.get_text(separator="\n", strip=True)
+            if len(text) > 200:
+                break
+
+    # Fallback: all body text
+    if not text or len(text) < 200:
+        text = soup.get_text(separator="\n", strip=True)
+
+    # Clean up excessive blank lines
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    return "\n".join(lines)[:8000]  # Cap at 8k chars to keep prompt manageable
 
 # ─── Text extraction ──────────────────────────────────────────────────────────
 def extract_text_from_pdf(file):
@@ -488,10 +551,25 @@ def build_modern(cv):
 # ─── Main action ──────────────────────────────────────────────────────────────
 if st.button("🚀 Optimizar mi CV", use_container_width=True):
     if not api_key:
-        st.error("⚠️ Ingresa tu API Key de Anthropic en el panel izquierdo.")
+        st.error("⚠️ No hay API Key disponible. Recarga la página e intenta nuevamente.")
         st.stop()
-    if not job_description.strip():
-        st.error("⚠️ Por favor pega la oferta de trabajo.")
+
+    # Resolve job description: URL takes priority over pasted text
+    final_job = job_description.strip()
+    if job_url.strip():
+        with st.spinner("🔍 Leyendo la oferta desde el link..."):
+            try:
+                scraped = scrape_job_url(job_url.strip())
+                if scraped:
+                    final_job = scraped
+                    st.success(f"✅ Oferta leída correctamente ({len(scraped)} caracteres extraídos)")
+                else:
+                    st.warning("No se pudo extraer texto del link. Usando el texto pegado si existe.")
+            except ValueError as e:
+                st.warning(str(e))
+
+    if not final_job:
+        st.error("⚠️ Pega la oferta de trabajo o ingresa un link válido.")
         st.stop()
 
     # Extract CV text
@@ -517,13 +595,20 @@ if st.button("🚀 Optimizar mi CV", use_container_width=True):
     # Optimize with Claude
     with st.spinner("🤖 Claude está analizando tu CV y la oferta..."):
         try:
-            cv_data = optimize_cv(api_key, cv_text, job_description)
+            cv_data = optimize_cv(api_key, cv_text, final_job)
+            # Clear any previous credit error flag on success
+            st.session_state["api_credits_error"] = False
         except json.JSONDecodeError:
             st.error("Error procesando la respuesta de Claude. Intenta nuevamente.")
             st.stop()
         except anthropic.AuthenticationError:
-            st.error("API Key inválida. Revisa tu clave de Anthropic.")
+            st.error("API Key inválida.")
             st.stop()
+        except anthropic.RateLimitError:
+            st.session_state["api_credits_error"] = True
+            st.error("⚠️ El servicio no tiene saldo disponible en este momento. "
+                     "Puedes ingresar tu propia API Key en el menú lateral para continuar.")
+            st.rerun()
         except Exception as e:
             st.error(f"Error inesperado: {e}")
             st.stop()
