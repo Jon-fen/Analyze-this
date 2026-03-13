@@ -6,31 +6,38 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
-import io
-import json
+import io, json, re, time
 import requests
 from bs4 import BeautifulSoup
 
+MAX_CV_CHARS = 15_000
+
 # ─── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="CV Optimizer ATS",
-    page_icon="🎯",
-    layout="centered"
-)
+st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="centered")
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-    div[data-testid="stDownloadButton"] button {
-        background-color: #1B6CA8; color: white;
-        font-size: 1rem; padding: 0.6rem 1.5rem;
-        border-radius: 6px; width: 100%; }
-    .coach-card { background: #F0F9FF; border-left: 4px solid #2E75B6;
-                  padding: 0.75rem 1rem; border-radius: 4px;
-                  margin-bottom: 0.5rem; font-size: 0.95rem; }
-    .score-explain { background: #F8F8F8; border-radius: 8px;
-                     padding: 0.75rem 1rem; font-size: 0.9rem;
-                     color: #444; margin-top: 0.5rem; }
+.block-container { padding-top: 2rem; padding-bottom: 2rem; }
+div[data-testid="stDownloadButton"] button {
+    background-color: #1B6CA8; color: white;
+    font-size: 1rem; padding: 0.6rem 1.5rem;
+    border-radius: 6px; width: 100%; }
+.coach-card { background: #F0F9FF; border-left: 4px solid #2E75B6;
+              padding: 0.75rem 1rem; border-radius: 4px;
+              margin-bottom: 0.5rem; font-size: 0.95rem; }
+.score-explain { background: #F8F8F8; border-radius: 8px;
+                 padding: 0.75rem 1rem; font-size: 0.9rem;
+                 color: #444; margin-top: 0.5rem; }
+.warn-box { background: #FFF8E1; border-left: 3px solid #FFA000;
+            padding: 0.6rem 0.9rem; border-radius: 4px;
+            font-size: 0.88rem; color: #555; margin-bottom: 0.75rem; }
+.tip-box  { background: #E8F5E9; border-left: 3px solid #4CAF50;
+            padding: 0.6rem 0.9rem; border-radius: 4px;
+            font-size: 0.88rem; color: #2E7D32; margin-bottom: 0.75rem; }
+.template-preview { border: 1px solid #DDD; border-radius: 6px;
+                    padding: 0.6rem 0.8rem; font-size: 0.82rem;
+                    background: #FAFAFA; margin-top: 0.3rem;
+                    font-family: monospace; line-height: 1.5; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,14 +46,15 @@ st.title("🎯 CV Optimizer ATS")
 st.markdown("Adapta tu CV a cualquier oferta laboral y supera los filtros automáticos.")
 
 # ─── API Key ──────────────────────────────────────────────────────────────────
-def get_api_key():
+def get_secret_key():
     try:
         return st.secrets["ANTHROPIC_API_KEY"]
     except (KeyError, FileNotFoundError):
         return None
 
-_secret_key = get_api_key()
+_secret_key = get_secret_key()
 
+# ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Configuración")
 
@@ -58,83 +66,176 @@ with st.sidebar:
             if user_key:
                 api_key = user_key
     else:
-        st.warning("⚠️ Ingresa tu API Key de Anthropic")
+        st.warning("⚠️ Ingresa tu API Key")
         api_key = st.text_input("🔑 Anthropic API Key", type="password",
                                  help="Obtén tu key en console.anthropic.com")
 
     st.markdown("---")
-
-    # ── Format controls ────────────────────────────────────────────────────
     st.markdown("**📐 Formato del CV**")
 
-    max_pages = st.slider("Páginas máximas", min_value=1, max_value=3, value=2,
-                           help="Claude seleccionará el contenido más relevante para ajustarse a este límite.")
+    max_pages = st.slider("Páginas máximas", 1, 3, 2,
+        help="Claude seleccionará el contenido más relevante para ajustarse a este límite.")
 
-    font_family = st.selectbox(
-        "Tipografía",
-        options=["Calibri", "Arial", "Georgia", "Times New Roman", "Helvetica"],
-        index=0,
-        help="Calibri y Arial son las más amigables con los ATS."
-    )
+    font_family = st.selectbox("Tipografía",
+        ["Calibri", "Arial", "Georgia", "Times New Roman", "Trebuchet MS"], index=0,
+        help="Calibri y Arial son las más amigables con los ATS.")
 
-    font_size = st.select_slider(
-        "Tamaño de letra",
-        options=[9, 10, 10.5, 11, 12],
-        value=10,
-        help="Los títulos se ajustan proporcionalmente."
-    )
+    font_size = st.select_slider("Tamaño de letra",
+        options=[9, 10, 10.5, 11, 12], value=10,
+        help="Los títulos se ajustan proporcionalmente.")
+
+    if st.session_state.get("cv_data"):
+        st.markdown("---")
+        st.success("✅ Análisis listo")
+        st.markdown("**Cambia template, fuente o páginas** y descarga cuantas versiones quieras — sin volver a consumir créditos.")
+        if st.button("🔄 Generar nueva versión DOCX", use_container_width=True):
+            st.session_state["regen_docx"] = True
 
     st.markdown("---")
     st.markdown("**¿Cómo funciona?**")
-    st.markdown("1. Sube tu CV (PDF o DOCX)")
-    st.markdown("2. Pega o linkea la oferta")
-    st.markdown("3. Configura formato y template")
-    st.markdown("4. Descarga tu CV optimizado")
+    st.markdown("1. Sube tu **CV maestro** con toda tu experiencia")
+    st.markdown("2. Pega o linkea la oferta laboral")
+    st.markdown("3. Elige template y descarga")
+    st.markdown("4. Repite para otras ofertas sin límite")
     st.markdown("---")
     st.caption("Powered by Claude AI · Anthropic")
+
+# ─── CV Strategy guidance ─────────────────────────────────────────────────────
+with st.expander("💡 ¿Cómo sacar el máximo provecho? Lee esto primero", expanded=False):
+    st.markdown("""
+**La estrategia correcta: CV Maestro + CVs enfocados**
+
+La mayoría de la gente comete dos errores opuestos:
+- **Error 1:** Subir un CV de 10+ páginas con toda su vida — los reclutadores no lo leen y los ATS se pierden.
+- **Error 2:** Tener un solo CV genérico que mandan a todas las ofertas — los ATS lo filtran porque no hay match de keywords.
+
+**La solución que esta app facilita:**
+
+1. **Sube tu CV Maestro** — ese documento de 3, 5 o incluso 35 páginas con TODO lo que has hecho. No lo edites, súbelo completo. Claude lo leerá entero y seleccionará solo lo relevante.
+
+2. **Pega la oferta específica** — Claude identifica qué experiencias del maestro encajan, integra las keywords exactas del puesto y descarta lo irrelevante.
+
+3. **Descarga un CV de 1-2 páginas** listo para esa oferta, con formato ATS-friendly.
+
+4. **Repite para cada oferta** — misma subida del maestro, distinta oferta, distinto CV enfocado. Cada uno estará optimizado para esa empresa específica.
+
+**¿Por qué no subir el CV largo directamente a las empresas?**
+Los sistemas ATS escanean en segundos. Un CV de 5+ páginas generalmente se descalifica automáticamente antes de que un humano lo vea. El reclutador promedio dedica **7 segundos** al primer escaneo.
+    """)
 
 # ─── Inputs ───────────────────────────────────────────────────────────────────
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📄 Tu CV")
+    st.markdown('<div class="tip-box">💡 <strong>Sube tu CV completo</strong> — aunque tenga 10 o 30 páginas. Claude extraerá solo lo relevante para la oferta.</div>', unsafe_allow_html=True)
     cv_file = st.file_uploader("Sube tu CV", type=["pdf", "docx"],
                                 label_visibility="collapsed")
-    cv_text_manual = st.text_area(
-        "O pega el texto aquí",
-        height=220,
-        placeholder="Pega el contenido de tu CV si no tienes archivo...",
-    )
+    cv_text_manual = st.text_area("O pega el texto aquí", height=180,
+        placeholder="Pega el contenido de tu CV si no tienes archivo...")
 
 with col2:
     st.subheader("💼 Oferta Laboral")
-    job_url = st.text_input(
-        "🔗 Link de la oferta",
-        placeholder="https://www.linkedin.com/jobs/... o cualquier portal",
-    )
-    job_description = st.text_area(
-        "O pega el texto aquí",
-        height=215,
-        placeholder="Pega aquí el texto de la oferta...\nMientras más completa, mejor la optimización.",
-    )
+    job_url = st.text_input("🔗 Link de la oferta",
+        placeholder="https://www.linkedin.com/jobs/... o cualquier portal")
+    job_description = st.text_area("O pega el texto aquí", height=215,
+        placeholder="Pega aquí el texto de la oferta...\nMientras más completa, mejor la optimización.")
 
 # ─── Template selector ────────────────────────────────────────────────────────
 st.subheader("🎨 Template del CV")
-t_col1, t_col2 = st.columns(2)
-with t_col1:
-    with st.container(border=True):
-        st.markdown("**📋 Clásico**")
-        st.markdown("Formato tradicional. Ideal para finanzas, legal, gobierno y roles senior.")
-with t_col2:
-    with st.container(border=True):
-        st.markdown("**✨ Moderno**")
-        st.markdown("Diseño limpio con header destacado. Ideal para tech, startups y marketing.")
+st.markdown("Elige un template. **Después de optimizar, puedes descargar en cualquier template sin costo adicional.**")
 
-template = st.radio("Template:", ["Clásico", "Moderno"],
+TEMPLATES = {
+    "📋 Clásico": {
+        "desc": "Nombre centrado · Líneas azules · Bullets clásicos",
+        "ideal": "Finanzas, legal, gobierno, roles senior",
+        "preview": (
+            "─────────────────────────────\n"
+            "         JUAN PÉREZ          \n"
+            "   Gerente de Operaciones    \n"
+            "  email | tel | ciudad       \n"
+            "─────────────────────────────\n"
+            "RESUMEN PROFESIONAL          \n"
+            "─────────────────────────────\n"
+            "EXPERIENCIA PROFESIONAL      \n"
+            "  Cargo · Empresa | 2020-Actual\n"
+            "  • Logro con impacto medible\n"
+            "─────────────────────────────\n"
+            "EDUCACIÓN  /  HABILIDADES    "
+        )
+    },
+    "✨ Moderno": {
+        "desc": "Nombre en mayúsculas · Header navy/teal · Flechas ▸",
+        "ideal": "Tech, startups, marketing digital, diseño",
+        "preview": (
+            "JUAN PÉREZ                   \n"
+            "Gerente de Operaciones       \n"
+            "✉ email  ✆ tel  ⌖ ciudad    \n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "◆  PERFIL PROFESIONAL        \n"
+            "◆  EXPERIENCIA               \n"
+            "   Cargo — Empresa           \n"
+            "   2020-Actual               \n"
+            "   ▸ Logro con keywords ATS  \n"
+            "◆  HABILIDADES  ◆  IDIOMAS   "
+        )
+    },
+    "🏛️ Ejecutivo": {
+        "desc": "Header con franja oscura · Dos columnas de contacto · Serifas",
+        "ideal": "Dirección general, C-level, consultoría senior, banca",
+        "preview": (
+            "████████████████████████████\n"
+            "  JUAN PÉREZ                \n"
+            "  Director General          \n"
+            "████████████████████████████\n"
+            "email · tel · LinkedIn      \n"
+            "────────────────────────────\n"
+            "PERFIL EJECUTIVO            \n"
+            "TRAYECTORIA PROFESIONAL     \n"
+            "  ■ Cargo  |  Empresa       \n"
+            "    Logro estratégico clave \n"
+            "────────────────────────────\n"
+            "FORMACIÓN  ·  COMPETENCIAS  "
+        )
+    },
+    "⬜ Minimalista": {
+        "desc": "Todo en gris oscuro · Sin colores · Máxima legibilidad ATS",
+        "ideal": "Cualquier sector · El más seguro para parsers ATS",
+        "preview": (
+            "Juan Pérez                   \n"
+            "Gerente de Operaciones       \n"
+            "email | tel | ciudad         \n"
+            "                             \n"
+            "RESUMEN                      \n"
+            "                             \n"
+            "EXPERIENCIA                  \n"
+            "Cargo — Empresa (2020-Actual)\n"
+            "- Logro cuantificado         \n"
+            "                             \n"
+            "EDUCACIÓN · HABILIDADES      "
+        )
+    }
+}
+
+t_cols = st.columns(4)
+for i, (name, info) in enumerate(TEMPLATES.items()):
+    with t_cols[i]:
+        with st.container(border=True):
+            st.markdown(f"**{name}**")
+            st.caption(info["ideal"])
+            with st.expander("👁️ Vista previa"):
+                st.markdown(f'<div class="template-preview">{info["preview"]}</div>',
+                            unsafe_allow_html=True)
+
+template = st.radio("Selecciona template:", list(TEMPLATES.keys()),
                     horizontal=True, label_visibility="collapsed")
+
 st.markdown("---")
 
-# ─── URL scraper ──────────────────────────────────────────────────────────────
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+def is_valid_url(url: str) -> bool:
+    return bool(re.match(r'^https?://', url.strip()))
+
 def scrape_job_url(url: str) -> str:
     headers = {"User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -146,21 +247,20 @@ def scrape_job_url(url: str) -> str:
     except requests.exceptions.Timeout:
         raise ValueError("El sitio tardó demasiado. Pega el texto manualmente.")
     except requests.exceptions.HTTPError as e:
-        raise ValueError(f"No se pudo acceder ({e.response.status_code}). Pega el texto manualmente.")
+        raise ValueError(f"No se pudo acceder ({e.response.status_code}).")
     except Exception:
-        raise ValueError("No se pudo acceder al link. Verifica la URL o pega el texto.")
+        raise ValueError("No se pudo acceder al link.")
 
     soup = BeautifulSoup(resp.text, "html.parser")
     for tag in soup(["script","style","nav","footer","header","aside","form","noscript","iframe"]):
         tag.decompose()
-
-    selectors = [
-        {"class": lambda c: c and any(k in " ".join(c).lower() for k in
-                                       ["job-description","description","vacancy","posting","details","content"])},
-        {"id": lambda i: i and any(k in i.lower() for k in ["job-description","description","details"])},
-    ]
     text = ""
-    for sel in selectors:
+    for sel in [
+        {"class": lambda c: c and any(k in " ".join(c).lower() for k in
+            ["job-description","description","vacancy","posting","details","content"])},
+        {"id": lambda i: i and any(k in i.lower() for k in
+            ["job-description","description","details"])},
+    ]:
         block = soup.find(attrs=sel)
         if block:
             text = block.get_text(separator="\n", strip=True)
@@ -168,12 +268,10 @@ def scrape_job_url(url: str) -> str:
                 break
     if not text or len(text) < 200:
         text = soup.get_text(separator="\n", strip=True)
-
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     return "\n".join(lines)[:8000]
 
-# ─── File extraction ──────────────────────────────────────────────────────────
-def extract_text_from_pdf(file):
+def extract_pdf(file) -> str:
     text = ""
     with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
@@ -182,133 +280,108 @@ def extract_text_from_pdf(file):
                 text += t + "\n"
     return text.strip()
 
-def extract_text_from_docx(file):
+def extract_docx(file) -> str:
     doc = DocxDocument(file)
     return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
 # ─── Claude optimization ──────────────────────────────────────────────────────
-def optimize_cv(api_key, cv_text, job_text, max_pages, font_size):
-    client = anthropic.Anthropic(api_key=api_key)
+def optimize_cv(api_key, cv_text, job_text, max_pages, font_size) -> dict:
+    was_truncated = len(cv_text) > MAX_CV_CHARS
+    cv_text = cv_text[:MAX_CV_CHARS]
 
     words_per_page = {9: 700, 10: 600, 10.5: 560, 11: 520, 12: 460}
-    max_words = words_per_page.get(font_size, 580) * max_pages
+    max_words = words_per_page.get(float(font_size), 580) * max_pages
 
-    prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS (Applicant Tracking Systems).
+    prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
 
-Analiza el CV y la oferta laboral. Debes:
-1. Seleccionar y adaptar SOLO el contenido más relevante para esta oferta (el CV puede ser extenso — prioriza sin inventar)
-2. Integrar las palabras clave exactas de la oferta de forma natural
-3. Reescribir los logros con verbos de acción cuantificados cuando sea posible
-4. Respetar el límite de {max_pages} página(s) (~{max_words} palabras en el cuerpo del CV)
-5. Evaluar si el CV resultante pasará filtros ATS automáticos
+INSTRUCCIONES CRÍTICAS:
+1. El CV puede ser un "CV Maestro" extenso con toda la carrera del candidato — selecciona SOLO la experiencia más relevante para ESTA oferta
+2. NO inventes nada. Solo reescribe y reorganiza lo que existe
+3. Integra las keywords exactas de la oferta de forma natural en logros y resumen
+4. Cuantifica logros cuando el CV original tenga datos (números, %, equipos, presupuestos)
+5. Respeta ESTRICTAMENTE el límite: {max_pages} página(s) ≈ {max_words} palabras totales
+6. El resultado debe pasar parsers ATS: sin tablas, sin columnas, sin elementos gráficos
 
-CV ORIGINAL:
+CV MAESTRO (puede ser extenso — selecciona lo relevante):
 {cv_text}
 
 OFERTA DE TRABAJO:
 {job_text}
 
-Devuelve ÚNICAMENTE JSON válido (sin backticks, sin texto extra):
+Responde ÚNICAMENTE con JSON válido, sin backticks ni texto adicional:
 {{
-  "nombre": "nombre completo",
-  "titulo_profesional": "título adaptado exactamente al puesto",
-  "email": "email si existe en el CV",
-  "telefono": "teléfono si existe",
-  "linkedin": "URL LinkedIn si existe",
+  "nombre": "nombre completo del candidato",
+  "titulo_profesional": "título exacto del puesto ofrecido",
+  "email": "email o vacío",
+  "telefono": "teléfono o vacío",
+  "linkedin": "URL LinkedIn o vacío",
   "ubicacion": "ciudad, país",
-
-  "resumen_profesional": "Párrafo potente de 3-4 oraciones conectando la experiencia del candidato con los requisitos clave del puesto. Incluir keywords ATS de la oferta.",
-
+  "resumen_profesional": "3-4 oraciones conectando experiencia con requisitos clave. Keywords ATS incluidas naturalmente.",
   "experiencia": [
     {{
       "empresa": "nombre empresa",
-      "cargo": "título del cargo",
+      "cargo": "cargo",
       "periodo": "mes/año - mes/año o Actual",
       "logros": [
-        "Verbo de acción + tarea/proyecto + impacto medible con keyword ATS integrada",
-        "Otro logro cuantificado relevante para la oferta",
-        "Máximo 3-4 logros por cargo, solo los más relevantes para esta oferta"
+        "Verbo acción + resultado cuantificado + keyword ATS de la oferta",
+        "Solo incluir cargos y logros relevantes para ESTA oferta",
+        "Máximo 3-4 logros por cargo"
       ]
     }}
   ],
-
   "educacion": [
-    {{
-      "institucion": "nombre",
-      "titulo": "título obtenido",
-      "periodo": "años",
-      "detalle": "mención si aplica, o dejar vacío"
-    }}
+    {{"institucion": "nombre", "titulo": "título", "periodo": "años", "detalle": "mención o vacío"}}
   ],
-
-  "habilidades_tecnicas": ["solo skills mencionados o inferibles del CV que son relevantes para la oferta"],
-  "habilidades_blandas": ["máximo 4 competencias clave para el rol"],
-  "idiomas": ["Español - Nativo", "Inglés - B2 (ejemplo)"],
-  "certificaciones": ["solo si existen en el CV"],
-
+  "habilidades_tecnicas": ["solo skills del CV que aparecen o son directamente relevantes para la oferta"],
+  "habilidades_blandas": ["máx 4 competencias que conectan con la oferta"],
+  "idiomas": ["Español - Nativo"],
+  "certificaciones": ["solo si existen en el CV original"],
   "ats_compatible": true,
-  "ats_razon": "Frase breve explicando por qué sí o no pasa filtros ATS",
-
+  "ats_razon": "Una frase: por qué pasa o no pasa filtros ATS automáticos",
   "score_match": 82,
-  "score_desglose": {{
-    "keywords": 90,
-    "experiencia": 80,
-    "educacion": 75,
-    "habilidades": 85
-  }},
-  "score_explicacion": "2-3 oraciones: qué hace fuerte al candidato para este rol y qué reduce el score.",
-
-  "keywords_integradas": ["keyword1", "keyword2"],
-  "keywords_faltantes": ["keyword importante ausente"],
-
+  "score_desglose": {{"keywords": 88, "experiencia": 80, "educacion": 75, "habilidades": 85}},
+  "score_explicacion": "2-3 oraciones: qué fortalece la candidatura para este rol y qué la limita.",
+  "keywords_integradas": ["keyword de la oferta que se integró exitosamente"],
+  "keywords_faltantes": ["keyword importante de la oferta ausente en el CV"],
   "coaching": [
-    {{
-      "categoria": "Tu fortaleza clave",
-      "tip": "Qué tiene el candidato que es realmente valioso para este rol y cómo destacarlo."
-    }},
-    {{
-      "categoria": "Brecha crítica",
-      "tip": "Skill o experiencia que falta y cómo cerrar esa brecha: curso, certificación o proyecto concreto."
-    }},
-    {{
-      "categoria": "Quick win",
-      "tip": "Una acción concreta que puede hacer HOY para mejorar su candidatura para este rol."
-    }},
-    {{
-      "categoria": "LinkedIn / Marca personal",
-      "tip": "Sugerencia concreta para reforzar su perfil LinkedIn o presencia digital para este tipo de rol."
-    }},
-    {{
-      "categoria": "Próximo paso",
-      "tip": "Qué hacer después de enviar el CV: cómo investigar la empresa, networking relevante, qué preparar para la entrevista."
-    }}
+    {{"categoria": "Tu fortaleza clave 💪", "tip": "Qué tiene el candidato que es genuinamente valioso para este rol y cómo maximizarlo."}},
+    {{"categoria": "Brecha crítica 🎯", "tip": "La brecha más importante. Cómo cerrarla: nombre de curso específico, certificación concreta o proyecto puntual."}},
+    {{"categoria": "Quick win de hoy ⚡", "tip": "Una acción en menos de 1 hora que mejore la candidatura para este puesto específico."}},
+    {{"categoria": "LinkedIn / Marca personal 🔗", "tip": "Qué cambiar o agregar en LinkedIn para este tipo de rol y empresa."}},
+    {{"categoria": "Antes de la entrevista 📋", "tip": "Qué investigar de la empresa, qué preguntas preparar y qué narrativa construir para este puesto."}}
   ]
 }}"""
 
-    msg = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=5000,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    raw = msg.content[0].text.strip()
-    if "```json" in raw:
-        raw = raw.split("```json")[1].split("```")[0].strip()
-    elif "```" in raw:
-        raw = raw.split("```")[1].split("```")[0].strip()
-
-    return json.loads(raw)
+    client = anthropic.Anthropic(api_key=api_key)
+    for attempt in range(2):
+        msg = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=5000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = msg.content[0].text.strip()
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+        try:
+            result = json.loads(raw)
+            result["_was_truncated"] = was_truncated
+            return result
+        except json.JSONDecodeError:
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            raise
 
 # ─── DOCX helpers ─────────────────────────────────────────────────────────────
-def add_section_header(doc, title, color_rgb, font_name, body_size, border_color, prefix=""):
+def add_border(doc, body_size, border_color):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(body_size * 1.0)
+    p.paragraph_format.space_before = Pt(body_size)
     p.paragraph_format.space_after = Pt(body_size * 0.3)
-    run = p.add_run(f"{prefix}{title}")
-    run.bold = True
-    run.font.name = font_name
-    run.font.size = Pt(body_size + 1)
-    run.font.color.rgb = RGBColor(*color_rgb)
+    return p
+
+def section_border(p, border_color):
     pPr = p._p.get_or_add_pPr()
     pBdr = OxmlElement('w:pBdr')
     pPr.append(pBdr)
@@ -318,228 +391,402 @@ def add_section_header(doc, title, color_rgb, font_name, body_size, border_color
     bottom.set(qn('w:space'), '1')
     bottom.set(qn('w:color'), border_color)
     pBdr.append(bottom)
-    return p
 
-def set_run(run, font_name, size, bold=False, italic=False, color=None):
-    run.font.name = font_name
-    run.font.size = Pt(float(size))
+def add_section_header(doc, title, color_rgb, fn, body_size, border_color, prefix=""):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(body_size)
+    p.paragraph_format.space_after = Pt(body_size * 0.3)
+    run = p.add_run(f"{prefix}{title}")
+    run.bold = True
+    run.font.name = fn
+    run.font.size = Pt(body_size + 1)
+    run.font.color.rgb = RGBColor(*color_rgb)
+    section_border(p, border_color)
+
+def R(run, fn, fs, bold=False, italic=False, color=None):
+    run.font.name = fn
+    run.font.size = Pt(float(fs))
     run.bold = bold
     run.italic = italic
     if color:
         run.font.color.rgb = RGBColor(*color)
     return run
 
-# ─── Template Clásico ─────────────────────────────────────────────────────────
-def build_classic(cv, font_name, font_size):
-    fs = float(font_size)
+# ─── Template: Clásico ────────────────────────────────────────────────────────
+def build_clasico(cv, fn, fs):
+    fs = float(fs)
     doc = DocxDocument()
-    sec = doc.sections[0]
-    sec.left_margin = Inches(1.0)
-    sec.right_margin = Inches(1.0)
-    sec.top_margin = Inches(0.8)
-    sec.bottom_margin = Inches(0.8)
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.0)
+    s.top_margin = Inches(0.8); s.bottom_margin = Inches(0.8)
+    DARK=(0x1A,0x1A,0x2E); BLUE=(0x2E,0x75,0xB6); GRAY=(0x66,0x66,0x66)
 
-    DARK = (0x1A, 0x1A, 0x2E)
-    BLUE = (0x2E, 0x75, 0xB6)
-    GRAY = (0x66, 0x66, 0x66)
+    def hdr(t): add_section_header(doc, t, BLUE, fn, fs, "2E75B6")
 
-    def hdr(title):
-        return add_section_header(doc, title, BLUE, font_name, fs, "2E75B6")
-
-    # Name
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    set_run(p.add_run(cv.get("nombre", "")), font_name, fs+9, bold=True, color=DARK)
-
-    # Title
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    set_run(p.add_run(cv.get("titulo_profesional", "")), font_name, fs+2, bold=True, color=BLUE)
-
-    # Contact
-    parts = [x for x in [cv.get("email"), cv.get("telefono"),
-                          cv.get("ubicacion"), cv.get("linkedin")] if x]
+    p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    R(p.add_run(cv.get("nombre","")), fn, fs+9, bold=True, color=DARK)
+    p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    R(p.add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=BLUE)
+    parts = [x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
     if parts:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        set_run(p.add_run("  |  ".join(parts)), font_name, fs-1, color=GRAY)
+        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        R(p.add_run("  |  ".join(parts)), fn, fs-1, color=GRAY)
 
     if cv.get("resumen_profesional"):
         hdr("RESUMEN PROFESIONAL")
-        p = doc.add_paragraph()
-        set_run(p.add_run(cv["resumen_profesional"]), font_name, fs)
+        R(doc.add_paragraph().add_run(cv["resumen_profesional"]), fn, fs)
 
     if cv.get("experiencia"):
         hdr("EXPERIENCIA PROFESIONAL")
         for exp in cv["experiencia"]:
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(fs * 0.6)
-            set_run(p.add_run(exp.get("cargo", "")), font_name, fs, bold=True)
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.6)
+            R(p.add_run(exp.get("cargo","")), fn, fs, bold=True)
             p2 = doc.add_paragraph()
-            set_run(p2.add_run(f"{exp.get('empresa','')}   |   {exp.get('periodo','')}"),
-                    font_name, fs-1, italic=True, color=GRAY)
-            for logro in exp.get("logros", []):
+            R(p2.add_run(f"{exp.get('empresa','')}   |   {exp.get('periodo','')}"), fn, fs-1, italic=True, color=GRAY)
+            for logro in exp.get("logros",[]):
                 pb = doc.add_paragraph(style="List Bullet")
                 pb.paragraph_format.left_indent = Inches(0.2)
                 pb.paragraph_format.space_after = Pt(2)
-                set_run(pb.add_run(logro), font_name, fs)
+                R(pb.add_run(logro), fn, fs)
 
     if cv.get("educacion"):
         hdr("EDUCACIÓN")
         for edu in cv["educacion"]:
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(fs * 0.5)
-            set_run(p.add_run(edu.get("titulo", "")), font_name, fs, bold=True)
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.5)
+            R(p.add_run(edu.get("titulo","")), fn, fs, bold=True)
             p2 = doc.add_paragraph()
-            set_run(p2.add_run(f"{edu.get('institucion','')}   |   {edu.get('periodo','')}"),
-                    font_name, fs-1, italic=True, color=GRAY)
-            if edu.get("detalle"):
-                p3 = doc.add_paragraph()
-                set_run(p3.add_run(edu["detalle"]), font_name, fs-1)
+            R(p2.add_run(f"{edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1, italic=True, color=GRAY)
+            if edu.get("detalle"): R(doc.add_paragraph().add_run(edu["detalle"]), fn, fs-1)
 
     if cv.get("habilidades_tecnicas"):
         hdr("HABILIDADES TÉCNICAS")
-        p = doc.add_paragraph()
-        set_run(p.add_run("  •  ".join(cv["habilidades_tecnicas"])), font_name, fs)
-
+        R(doc.add_paragraph().add_run("  •  ".join(cv["habilidades_tecnicas"])), fn, fs)
     if cv.get("habilidades_blandas"):
         hdr("COMPETENCIAS")
-        p = doc.add_paragraph()
-        set_run(p.add_run("  •  ".join(cv["habilidades_blandas"])), font_name, fs)
-
+        R(doc.add_paragraph().add_run("  •  ".join(cv["habilidades_blandas"])), fn, fs)
     if cv.get("idiomas"):
         hdr("IDIOMAS")
-        p = doc.add_paragraph()
-        set_run(p.add_run("  |  ".join(cv["idiomas"])), font_name, fs)
-
-    certs = [c for c in cv.get("certificaciones", []) if c]
+        R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs = [c for c in cv.get("certificaciones",[]) if c]
     if certs:
         hdr("CERTIFICACIONES")
-        for cert in certs:
-            p = doc.add_paragraph()
-            set_run(p.add_run(f"• {cert}"), font_name, fs)
+        for cert in certs: R(doc.add_paragraph().add_run(f"• {cert}"), fn, fs)
 
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0); return buf
 
-# ─── Template Moderno ─────────────────────────────────────────────────────────
-def build_modern(cv, font_name, font_size):
-    fs = float(font_size)
+# ─── Template: Moderno ────────────────────────────────────────────────────────
+def build_moderno(cv, fn, fs):
+    fs = float(fs)
     doc = DocxDocument()
-    sec = doc.sections[0]
-    sec.left_margin = Inches(0.75)
-    sec.right_margin = Inches(0.75)
-    sec.top_margin = Inches(0.6)
-    sec.bottom_margin = Inches(0.8)
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(0.75)
+    s.top_margin = Inches(0.6); s.bottom_margin = Inches(0.8)
+    NAVY=(0x1B,0x4F,0x72); TEAL=(0x17,0x8A,0xCA); GRAY=(0x77,0x77,0x77)
 
-    NAVY = (0x1B, 0x4F, 0x72)
-    TEAL = (0x17, 0x8A, 0xCA)
-    GRAY = (0x77, 0x77, 0x77)
+    def hdr(t): add_section_header(doc, t, NAVY, fn, fs, "17A8CA", prefix="◆  ")
 
-    def section_hdr(title):
-        add_section_header(doc, title, NAVY, font_name, fs, "17A8CA", prefix="◆  ")
-
-    # Name
-    p = doc.add_paragraph()
-    set_run(p.add_run(cv.get("nombre", "").upper()), font_name, fs+11, bold=True, color=NAVY)
-
-    # Title
-    p = doc.add_paragraph()
-    set_run(p.add_run(cv.get("titulo_profesional", "")), font_name, fs+2, bold=True, color=TEAL)
-
-    # Contact
+    R(doc.add_paragraph().add_run(cv.get("nombre","").upper()), fn, fs+11, bold=True, color=NAVY)
+    R(doc.add_paragraph().add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=TEAL)
     parts = []
-    if cv.get("email"):     parts.append(f"✉ {cv['email']}")
-    if cv.get("telefono"):  parts.append(f"✆ {cv['telefono']}")
-    if cv.get("ubicacion"): parts.append(f"⌖ {cv['ubicacion']}")
-    if cv.get("linkedin"):  parts.append(f"in {cv['linkedin']}")
-    if parts:
-        p = doc.add_paragraph()
-        set_run(p.add_run("   |   ".join(parts)), font_name, fs-1, color=GRAY)
+    for icon,key in [("✉","email"),("✆","telefono"),("⌖","ubicacion"),("in","linkedin")]:
+        if cv.get(key): parts.append(f"{icon} {cv[key]}")
+    if parts: R(doc.add_paragraph().add_run("   |   ".join(parts)), fn, fs-1, color=GRAY)
 
-    # Divider
-    p_div = doc.add_paragraph()
-    p_div.paragraph_format.space_after = Pt(8)
-    pPr = p_div._p.get_or_add_pPr()
-    pBdr = OxmlElement('w:pBdr')
-    pPr.append(pBdr)
+    p_div = doc.add_paragraph(); p_div.paragraph_format.space_after = Pt(8)
+    pPr = p_div._p.get_or_add_pPr(); pBdr = OxmlElement('w:pBdr'); pPr.append(pBdr)
     btm = OxmlElement('w:bottom')
-    btm.set(qn('w:val'), 'single')
-    btm.set(qn('w:sz'), '16')
-    btm.set(qn('w:space'), '1')
-    btm.set(qn('w:color'), '1B4F72')
+    for a,v in [('w:val','single'),('w:sz','16'),('w:space','1'),('w:color','1B4F72')]: btm.set(qn(a),v)
     pBdr.append(btm)
 
     if cv.get("resumen_profesional"):
-        section_hdr("PERFIL PROFESIONAL")
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Inches(0.15)
-        set_run(p.add_run(cv["resumen_profesional"]), font_name, fs)
-
+        hdr("PERFIL PROFESIONAL")
+        p = doc.add_paragraph(); p.paragraph_format.left_indent = Inches(0.15)
+        R(p.add_run(cv["resumen_profesional"]), fn, fs)
     if cv.get("experiencia"):
-        section_hdr("EXPERIENCIA")
+        hdr("EXPERIENCIA")
         for exp in cv["experiencia"]:
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(fs * 0.7)
-            p.paragraph_format.left_indent = Inches(0.15)
-            set_run(p.add_run(exp.get("cargo", "")), font_name, fs, bold=True, color=NAVY)
-            set_run(p.add_run("  —  "), font_name, fs)
-            set_run(p.add_run(exp.get("empresa", "")), font_name, fs)
+            p.paragraph_format.space_before = Pt(fs*0.7); p.paragraph_format.left_indent = Inches(0.15)
+            R(p.add_run(exp.get("cargo","")), fn, fs, bold=True, color=NAVY)
+            R(p.add_run("  —  "), fn, fs)
+            R(p.add_run(exp.get("empresa","")), fn, fs)
+            p2 = doc.add_paragraph(); p2.paragraph_format.left_indent = Inches(0.15)
+            R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=TEAL)
+            for logro in exp.get("logros",[]):
+                pb = doc.add_paragraph(); pb.paragraph_format.left_indent = Inches(0.35); pb.paragraph_format.space_after = Pt(2)
+                R(pb.add_run(f"▸  {logro}"), fn, fs)
+    if cv.get("educacion"):
+        hdr("EDUCACIÓN")
+        for edu in cv["educacion"]:
+            p = doc.add_paragraph(); p.paragraph_format.left_indent = Inches(0.15); p.paragraph_format.space_before = Pt(fs*0.5)
+            R(p.add_run(edu.get("titulo","")), fn, fs, bold=True, color=NAVY)
+            R(p.add_run(f"   |   {edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1)
+            if edu.get("detalle"):
+                p2 = doc.add_paragraph(); p2.paragraph_format.left_indent = Inches(0.15)
+                R(p2.add_run(edu["detalle"]), fn, fs-1)
+    if cv.get("habilidades_tecnicas") or cv.get("habilidades_blandas"):
+        hdr("HABILIDADES")
+        for label,key in [("Técnicas: ","habilidades_tecnicas"),("Competencias: ","habilidades_blandas")]:
+            if cv.get(key):
+                p = doc.add_paragraph(); p.paragraph_format.left_indent = Inches(0.15)
+                R(p.add_run(label), fn, fs, bold=True)
+                R(p.add_run("  •  ".join(cv[key])), fn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS")
+        p = doc.add_paragraph(); p.paragraph_format.left_indent = Inches(0.15)
+        R(p.add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs = [c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("CERTIFICACIONES")
+        for cert in certs:
+            p = doc.add_paragraph(); p.paragraph_format.left_indent = Inches(0.15)
+            R(p.add_run(f"▸  {cert}"), fn, fs)
+
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+# ─── Template: Ejecutivo ──────────────────────────────────────────────────────
+def build_ejecutivo(cv, fn, fs):
+    fs = float(fs)
+    # Ejecutivo uses Georgia for body if Calibri/Arial selected (more gravitas)
+    serif_fn = "Georgia" if fn in ["Calibri","Arial","Trebuchet MS"] else fn
+    doc = DocxDocument()
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.0)
+    s.top_margin = Inches(0.7); s.bottom_margin = Inches(0.8)
+    NAVY=(0x1B,0x2A,0x4A); GOLD=(0x8B,0x6C,0x1E); DARK=(0x22,0x22,0x22); GRAY=(0x55,0x55,0x55)
+
+    # Name block — bold, large, left aligned
+    p = doc.add_paragraph()
+    R(p.add_run(cv.get("nombre","").upper()), serif_fn, fs+10, bold=True, color=NAVY)
+    p2 = doc.add_paragraph()
+    R(p2.add_run(cv.get("titulo_profesional","")), serif_fn, fs+1, italic=True, color=GOLD)
+
+    # Contact line
+    parts = [x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts:
+        p3 = doc.add_paragraph()
+        R(p3.add_run("  ·  ".join(parts)), fn, fs-1, color=GRAY)
+
+    # Thick navy divider
+    p_div = doc.add_paragraph(); p_div.paragraph_format.space_after = Pt(6)
+    pPr = p_div._p.get_or_add_pPr(); pBdr = OxmlElement('w:pBdr'); pPr.append(pBdr)
+    btm = OxmlElement('w:bottom')
+    for a,v in [('w:val','single'),('w:sz','24'),('w:space','1'),('w:color','1B2A4A')]: btm.set(qn(a),v)
+    pBdr.append(btm)
+
+    def hdr(t): add_section_header(doc, t, NAVY, serif_fn, fs, "1B2A4A")
+
+    if cv.get("resumen_profesional"):
+        hdr("PERFIL EJECUTIVO")
+        p = doc.add_paragraph()
+        R(p.add_run(cv["resumen_profesional"]), serif_fn, fs, italic=True)
+
+    if cv.get("experiencia"):
+        hdr("TRAYECTORIA PROFESIONAL")
+        for exp in cv["experiencia"]:
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.7)
+            R(p.add_run(f"■  {exp.get('cargo','')}"), serif_fn, fs, bold=True, color=NAVY)
+            R(p.add_run(f"  ·  {exp.get('empresa','')}"), serif_fn, fs, color=DARK)
             p2 = doc.add_paragraph()
-            p2.paragraph_format.left_indent = Inches(0.15)
-            set_run(p2.add_run(exp.get("periodo", "")), font_name, fs-1, italic=True, color=TEAL)
-            for logro in exp.get("logros", []):
+            R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=GRAY)
+            p2.paragraph_format.left_indent = Inches(0.25)
+            for logro in exp.get("logros",[]):
                 pb = doc.add_paragraph()
-                pb.paragraph_format.left_indent = Inches(0.35)
-                pb.paragraph_format.space_after = Pt(2)
-                set_run(pb.add_run(f"▸  {logro}"), font_name, fs)
+                pb.paragraph_format.left_indent = Inches(0.35); pb.paragraph_format.space_after = Pt(2)
+                R(pb.add_run(f"›  {logro}"), serif_fn, fs)
 
     if cv.get("educacion"):
-        section_hdr("EDUCACIÓN")
+        hdr("FORMACIÓN ACADÉMICA")
         for edu in cv["educacion"]:
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.15)
-            p.paragraph_format.space_before = Pt(fs * 0.5)
-            set_run(p.add_run(edu.get("titulo", "")), font_name, fs, bold=True, color=NAVY)
-            set_run(p.add_run(f"   |   {edu.get('institucion','')}   |   {edu.get('periodo','')}"), font_name, fs-1)
-            if edu.get("detalle"):
-                p2 = doc.add_paragraph()
-                p2.paragraph_format.left_indent = Inches(0.15)
-                set_run(p2.add_run(edu["detalle"]), font_name, fs-1)
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.5)
+            R(p.add_run(edu.get("titulo","")), serif_fn, fs, bold=True, color=NAVY)
+            R(p.add_run(f"  —  {edu.get('institucion','')}  |  {edu.get('periodo','')}"), serif_fn, fs-1, color=GRAY)
+            if edu.get("detalle"): R(doc.add_paragraph().add_run(edu["detalle"]), serif_fn, fs-1, italic=True)
 
+    # Skills in two-column feel using tab stops
     if cv.get("habilidades_tecnicas") or cv.get("habilidades_blandas"):
-        section_hdr("HABILIDADES")
-        if cv.get("habilidades_tecnicas"):
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.15)
-            set_run(p.add_run("Técnicas: "), font_name, fs, bold=True)
-            set_run(p.add_run("  •  ".join(cv["habilidades_tecnicas"])), font_name, fs)
-        if cv.get("habilidades_blandas"):
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.15)
-            set_run(p.add_run("Competencias: "), font_name, fs, bold=True)
-            set_run(p.add_run("  •  ".join(cv["habilidades_blandas"])), font_name, fs)
+        hdr("COMPETENCIAS Y HABILIDADES")
+        all_skills = cv.get("habilidades_tecnicas",[]) + cv.get("habilidades_blandas",[])
+        p = doc.add_paragraph()
+        R(p.add_run("  ■  ".join(all_skills)), serif_fn, fs)
 
     if cv.get("idiomas"):
-        section_hdr("IDIOMAS")
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Inches(0.15)
-        set_run(p.add_run("  |  ".join(cv["idiomas"])), font_name, fs)
+        hdr("IDIOMAS")
+        R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), serif_fn, fs)
 
-    certs = [c for c in cv.get("certificaciones", []) if c]
+    certs = [c for c in cv.get("certificaciones",[]) if c]
     if certs:
-        section_hdr("CERTIFICACIONES")
-        for cert in certs:
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.15)
-            set_run(p.add_run(f"▸  {cert}"), font_name, fs)
+        hdr("CERTIFICACIONES")
+        for cert in certs: R(doc.add_paragraph().add_run(f"■  {cert}"), serif_fn, fs)
 
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+# ─── Template: Minimalista ────────────────────────────────────────────────────
+def build_minimalista(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument()
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.1)
+    s.top_margin = Inches(0.9); s.bottom_margin = Inches(0.9)
+    DARK=(0x22,0x22,0x22); MID=(0x44,0x44,0x44); LIGHT=(0x88,0x88,0x88)
+
+    # Name — simple, no color
+    p = doc.add_paragraph()
+    R(p.add_run(cv.get("nombre","")), fn, fs+6, bold=True, color=DARK)
+    p2 = doc.add_paragraph()
+    R(p2.add_run(cv.get("titulo_profesional","")), fn, fs+0.5, color=MID)
+
+    parts = [x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts:
+        p3 = doc.add_paragraph()
+        R(p3.add_run("  |  ".join(parts)), fn, fs-1, color=LIGHT)
+
+    def hdr(t):
+        # Simple uppercase, no color, thin border
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(fs*1.2)
+        p.paragraph_format.space_after = Pt(fs*0.2)
+        run = p.add_run(t.upper())
+        run.bold = True; run.font.name = fn; run.font.size = Pt(fs)
+        run.font.color.rgb = RGBColor(*DARK)
+        section_border(p, "AAAAAA")
+
+    if cv.get("resumen_profesional"):
+        hdr("Resumen")
+        R(doc.add_paragraph().add_run(cv["resumen_profesional"]), fn, fs, color=MID)
+
+    if cv.get("experiencia"):
+        hdr("Experiencia")
+        for exp in cv["experiencia"]:
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.5)
+            R(p.add_run(exp.get("cargo","")), fn, fs, bold=True, color=DARK)
+            R(p.add_run(f"  —  {exp.get('empresa','')}"), fn, fs, color=MID)
+            p2 = doc.add_paragraph()
+            R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=LIGHT)
+            for logro in exp.get("logros",[]):
+                pb = doc.add_paragraph()
+                pb.paragraph_format.left_indent = Inches(0.2); pb.paragraph_format.space_after = Pt(2)
+                R(pb.add_run(f"- {logro}"), fn, fs, color=MID)
+
+    if cv.get("educacion"):
+        hdr("Educación")
+        for edu in cv["educacion"]:
+            p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs*0.4)
+            R(p.add_run(edu.get("titulo","")), fn, fs, bold=True, color=DARK)
+            R(p.add_run(f"  —  {edu.get('institucion','')}  ({edu.get('periodo','')})"), fn, fs-1, color=MID)
+            if edu.get("detalle"): R(doc.add_paragraph().add_run(edu["detalle"]), fn, fs-1, color=LIGHT)
+
+    all_skills = cv.get("habilidades_tecnicas",[]) + cv.get("habilidades_blandas",[])
+    if all_skills:
+        hdr("Habilidades")
+        R(doc.add_paragraph().add_run("  /  ".join(all_skills)), fn, fs, color=MID)
+
+    if cv.get("idiomas"):
+        hdr("Idiomas")
+        R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), fn, fs, color=MID)
+
+    certs = [c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("Certificaciones")
+        R(doc.add_paragraph().add_run("  /  ".join(certs)), fn, fs, color=MID)
+
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+# ─── Template dispatcher ──────────────────────────────────────────────────────
+BUILDERS = {
+    "📋 Clásico":    build_clasico,
+    "✨ Moderno":    build_moderno,
+    "🏛️ Ejecutivo":  build_ejecutivo,
+    "⬜ Minimalista": build_minimalista,
+}
+
+# ─── Results display ──────────────────────────────────────────────────────────
+def show_results(cv_data, template, fn, fs, max_pages):
+    st.markdown("---")
+    st.subheader("📊 Análisis de Compatibilidad")
+
+    if cv_data.get("_was_truncated"):
+        st.markdown(
+            '<div class="warn-box">⚠️ Tu CV era muy extenso — se analizaron los primeros 15.000 caracteres, '
+            'que equivalen a unas 5-6 páginas densas. Si tienes experiencia muy antigua que no apareció, '
+            'probablemente es porque Claude la priorizó correctamente como no relevante para esta oferta.</div>',
+            unsafe_allow_html=True
+        )
+
+    ats_ok  = cv_data.get("ats_compatible", True)
+    ats_msg = cv_data.get("ats_razon", "")
+    score   = cv_data.get("score_match", 0)
+    sc_col  = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+
+    bc, sc = st.columns([1, 2])
+    with bc:
+        if ats_ok: st.success("✅ ATS Compatible")
+        else: st.error("❌ No ATS Compatible")
+        if ats_msg: st.caption(ats_msg)
+    with sc:
+        st.metric(f"{sc_col} Match con la oferta (estimado por IA)", f"{score}%")
+        explain = cv_data.get("score_explicacion","")
+        if explain:
+            st.markdown(f'<div class="score-explain">{explain}</div>', unsafe_allow_html=True)
+
+    desglose = cv_data.get("score_desglose",{})
+    if desglose:
+        with st.expander("📈 Ver desglose del score"):
+            d1,d2,d3,d4 = st.columns(4)
+            d1.metric("Keywords",    f"{desglose.get('keywords','-')}%")
+            d2.metric("Experiencia", f"{desglose.get('experiencia','-')}%")
+            d3.metric("Educación",   f"{desglose.get('educacion','-')}%")
+            d4.metric("Habilidades", f"{desglose.get('habilidades','-')}%")
+
+    st.markdown("---")
+    k1,k2 = st.columns(2)
+    with k1:
+        kw_ok = cv_data.get("keywords_integradas",[])
+        if kw_ok: st.success(f"✅ **Keywords integradas ({len(kw_ok)}):**\n" + ", ".join(kw_ok))
+    with k2:
+        kw_miss = cv_data.get("keywords_faltantes",[])
+        if kw_miss: st.warning(f"⚠️ **Keywords ausentes ({len(kw_miss)}):**\n" + ", ".join(kw_miss))
+
+    coaching = cv_data.get("coaching",[])
+    if coaching:
+        st.markdown("---")
+        st.subheader("🎯 Tu Plan de Acción")
+        st.markdown("Recomendaciones personalizadas para maximizar tus chances en **esta** postulación:")
+        for tip_item in coaching:
+            cat = tip_item.get("categoria","")
+            tip_txt = tip_item.get("tip","")
+            st.markdown(f'<div class="coach-card"><strong>{cat}</strong><br>{tip_txt}</div>',
+                        unsafe_allow_html=True)
+
+    # Download section — all 4 templates
+    st.markdown("---")
+    st.subheader("⬇️ Descarga tu CV")
+    st.markdown("**El análisis ya está hecho — descarga en cualquier template sin costo adicional:**")
+
+    nombre = cv_data.get("nombre","cv").replace(" ","_")
+    dl_cols = st.columns(4)
+    for i, (tname, builder) in enumerate(BUILDERS.items()):
+        with dl_cols[i]:
+            try:
+                buf = builder(cv_data, fn, fs)
+                short = tname.split(" ")[1]  # "Clásico", "Moderno", etc.
+                st.download_button(
+                    label=f"⬇️ {short}",
+                    data=buf,
+                    file_name=f"CV_ATS_{nombre}_{short}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Error {tname}: {e}")
+
+    st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s) máxima(s)")
+
+# ─── Regenerate only ──────────────────────────────────────────────────────────
+if st.session_state.get("regen_docx") and st.session_state.get("cv_data"):
+    st.session_state["regen_docx"] = False
+    show_results(st.session_state["cv_data"], template, font_family, font_size, max_pages)
+    st.stop()
 
 # ─── Main action ──────────────────────────────────────────────────────────────
 if st.button("🚀 Optimizar mi CV", use_container_width=True):
@@ -550,141 +797,58 @@ if st.button("🚀 Optimizar mi CV", use_container_width=True):
     # Resolve job text
     final_job = job_description.strip()
     if job_url.strip():
-        with st.spinner("🔍 Leyendo la oferta desde el link..."):
-            try:
-                scraped = scrape_job_url(job_url.strip())
-                if scraped:
-                    final_job = scraped
-                    st.success(f"✅ Oferta leída ({len(scraped)} caracteres extraídos)")
-                else:
-                    st.warning("No se pudo extraer texto del link. Usando el texto pegado.")
-            except ValueError as e:
-                st.warning(str(e))
+        if not is_valid_url(job_url):
+            st.warning("⚠️ El link debe empezar con http:// o https://")
+        else:
+            with st.spinner("🔍 Leyendo la oferta desde el link..."):
+                try:
+                    scraped = scrape_job_url(job_url.strip())
+                    if scraped:
+                        final_job = scraped
+                        st.success(f"✅ Oferta leída ({len(scraped):,} caracteres extraídos)")
+                    else:
+                        st.warning("No se pudo extraer texto del link. Usando el texto pegado.")
+                except ValueError as e:
+                    st.warning(str(e))
 
     if not final_job:
         st.error("⚠️ Pega la oferta de trabajo o ingresa un link válido.")
         st.stop()
 
-    # Extract CV text
+    # Extract CV
     cv_text = ""
     if cv_file:
-        with st.spinner("Extrayendo texto del archivo..."):
+        with st.spinner("📄 Extrayendo texto del archivo..."):
             try:
-                if cv_file.name.lower().endswith(".pdf"):
-                    cv_text = extract_text_from_pdf(cv_file)
-                elif cv_file.name.lower().endswith(".docx"):
-                    cv_text = extract_text_from_docx(cv_file)
+                cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf") \
+                          else extract_docx(cv_file)
             except Exception as e:
-                st.error(f"Error al leer el archivo: {e}")
-                st.stop()
+                st.error(f"Error al leer el archivo: {e}"); st.stop()
 
     if cv_text_manual.strip():
         cv_text = cv_text_manual.strip() if not cv_text else cv_text + "\n" + cv_text_manual.strip()
 
     if not cv_text:
-        st.error("⚠️ Sube un archivo CV o pega el texto manualmente.")
-        st.stop()
+        st.error("⚠️ Sube un CV o pega el texto manualmente."); st.stop()
 
-    # Optimize with Claude
-    with st.spinner("🤖 Claude está analizando tu CV y preparando tu reporte de coaching..."):
+    # Call Claude
+    with st.spinner("🤖 Analizando tu CV maestro, keywords de la oferta y preparando coaching... (puede tomar 20-40 segundos)"):
         try:
             cv_data = optimize_cv(api_key, cv_text, final_job, max_pages, font_size)
+            st.session_state["cv_data"] = cv_data
             st.session_state["api_credits_error"] = False
         except json.JSONDecodeError:
-            st.error("Error procesando la respuesta. Intenta nuevamente.")
-            st.stop()
+            st.error("Error procesando respuesta de Claude. Intenta nuevamente."); st.stop()
         except anthropic.AuthenticationError:
-            st.error("API Key inválida.")
-            st.stop()
+            st.error("API Key inválida."); st.stop()
         except anthropic.RateLimitError:
             st.session_state["api_credits_error"] = True
-            st.error("⚠️ Servicio sin saldo. Puedes ingresar tu API Key en el panel lateral.")
+            st.error("⚠️ Servicio sin saldo. Ingresa tu API Key en el panel lateral.")
             st.rerun()
         except Exception as e:
-            st.error(f"Error inesperado: {e}")
-            st.stop()
+            st.error(f"Error inesperado: {e}"); st.stop()
 
-    # ── Results ────────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("📊 Análisis de Compatibilidad")
-
-    # ATS badge + score side by side
-    ats_ok = cv_data.get("ats_compatible", True)
-    ats_razon = cv_data.get("ats_razon", "")
-    score = cv_data.get("score_match", 0)
-    score_color = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
-
-    badge_col, score_col = st.columns([1, 2])
-    with badge_col:
-        if ats_ok:
-            st.success("✅ ATS Compatible")
-        else:
-            st.error("❌ No ATS Compatible")
-        if ats_razon:
-            st.caption(ats_razon)
-
-    with score_col:
-        st.metric(f"{score_color} Match con la oferta", f"{score}%")
-        explain = cv_data.get("score_explicacion", "")
-        if explain:
-            st.markdown(f'<div class="score-explain">{explain}</div>', unsafe_allow_html=True)
-
-    # Score breakdown
-    desglose = cv_data.get("score_desglose", {})
-    if desglose:
-        with st.expander("📈 Ver desglose del score"):
-            d1, d2, d3, d4 = st.columns(4)
-            d1.metric("Keywords", f"{desglose.get('keywords', '-')}%")
-            d2.metric("Experiencia", f"{desglose.get('experiencia', '-')}%")
-            d3.metric("Educación", f"{desglose.get('educacion', '-')}%")
-            d4.metric("Habilidades", f"{desglose.get('habilidades', '-')}%")
-
-    # Keywords
-    st.markdown("---")
-    k1, k2 = st.columns(2)
-    with k1:
-        kw_ok = cv_data.get("keywords_integradas", [])
-        if kw_ok:
-            st.success(f"✅ **Keywords integradas ({len(kw_ok)}):**\n" + ", ".join(kw_ok))
-    with k2:
-        kw_miss = cv_data.get("keywords_faltantes", [])
-        if kw_miss:
-            st.warning(f"⚠️ **Keywords ausentes ({len(kw_miss)}):**\n" + ", ".join(kw_miss))
-
-    # Coaching — shown openly, not hidden in expander
-    coaching = cv_data.get("coaching", [])
-    if coaching:
-        st.markdown("---")
-        st.subheader("🎯 Tu Plan de Acción")
-        st.markdown("Recomendaciones personalizadas para maximizar tus chances en **esta** postulación:")
-        for tip_item in coaching:
-            cat = tip_item.get("categoria", "")
-            tip_txt = tip_item.get("tip", "")
-            st.markdown(
-                f'<div class="coach-card"><strong>{cat}</strong><br>{tip_txt}</div>',
-                unsafe_allow_html=True
-            )
-
-    # Generate DOCX
-    st.markdown("---")
-    with st.spinner(f"Generando CV — {template} · {font_family} {font_size}pt · {max_pages} página(s)..."):
-        try:
-            if template == "Clásico":
-                buf = build_classic(cv_data, font_family, font_size)
-            else:
-                buf = build_modern(cv_data, font_family, font_size)
-        except Exception as e:
-            st.error(f"Error generando el documento: {e}")
-            st.stop()
-
-    nombre = cv_data.get("nombre", "cv").replace(" ", "_")
-    st.success("✅ ¡Tu CV optimizado está listo!")
-    st.download_button(
-        label=f"⬇️  Descargar CV — Template {template} · {font_family} {font_size}pt  (.docx)",
-        data=buf,
-        file_name=f"CV_ATS_{nombre}_{template}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    show_results(cv_data, template, font_family, font_size, max_pages)
 
 st.markdown("---")
 st.caption("CV Optimizer ATS · Powered by Claude AI · Anthropic")
