@@ -185,6 +185,19 @@ def get_history(user_id: str) -> list:
     except Exception:
         return []
 
+# ─── Usage counter ────────────────────────────────────────────────────────────
+def get_global_stats() -> dict:
+    """Returns total CVs generated and registered users. Cached 5 min."""
+    try:
+        cvs = supabase.table("history").select("id", count="exact").execute()
+        users = supabase.table("profiles").select("id", count="exact").execute()
+        return {
+            "cvs": cvs.count or 0,
+            "users": users.count or 0,
+        }
+    except Exception:
+        return {"cvs": 0, "users": 0}
+
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
     st.title("🎯 CV Optimizer ATS")
@@ -253,6 +266,16 @@ def show_auth_page():
     with c3:
         with st.container(border=True):
             st.markdown("**🏢 Admin**\nUso ilimitado\nPanel de gestión\nVista de todos los usuarios")
+
+    # Social proof counter
+    stats = get_global_stats()
+    if stats["cvs"] > 0:
+        st.markdown("---")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric("📄 CVs optimizados", f"{stats['cvs']:,}")
+        with c2:
+            st.metric("👥 Usuarios registrados", f"{stats['users']:,}")
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.warning("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets.")
@@ -554,64 +577,31 @@ def build_modern(cv, fn, fs):
 TEMPLATES = {
     "Clásico": {
         "icon": "📋",
-        "ideal": "Finanzas, legal, gobierno, roles senior",
-        "preview": (
-            "───────────────────────\n"
-            "      JUAN PÉREZ       \n"
-            " Gerente de Operaciones\n"
-            " email | tel | ciudad  \n"
-            "───────────────────────\n"
-            "RESUMEN PROFESIONAL    \n"
-            "EXPERIENCIA            \n"
-            "  Cargo · Empresa      \n"
-            "  • Logro medible      \n"
-            "EDUCACIÓN / HABILIDADES"
-        )
+        "color": "#2E75B6",
+        "ideal": "Finanzas · Legal · Gobierno · Roles senior",
+        "desc": "Nombre centrado, secciones con línea azul, bullets ordenados. El formato más reconocido y esperado por reclutadores tradicionales.",
+        "tags": ["#EBF3FB", "#2E75B6"],
     },
     "Moderno": {
         "icon": "✨",
-        "ideal": "Tech, startups, marketing digital",
-        "preview": (
-            "JUAN PÉREZ             \n"
-            "Gerente de Operaciones \n"
-            "✉ email  ✆ tel        \n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "◆  PERFIL PROFESIONAL  \n"
-            "◆  EXPERIENCIA         \n"
-            "   Cargo — Empresa     \n"
-            "   ▸ Logro con keyword \n"
-            "◆  HABILIDADES"
-        )
+        "color": "#178ACA",
+        "ideal": "Tech · Startups · Marketing · Diseño",
+        "desc": "Header con nombre en mayúsculas, secciones con rombos ◆ y flechas ▸. Diseño limpio que destaca sin sacrificar legibilidad ATS.",
+        "tags": ["#E8F7FD", "#178ACA"],
     },
     "Ejecutivo": {
         "icon": "🏛️",
-        "ideal": "Dirección, C-level, consultoría senior",
-        "preview": (
-            "███████████████████████\n"
-            "  JUAN PÉREZ           \n"
-            "  Director General     \n"
-            "███████████████████████\n"
-            "PERFIL EJECUTIVO       \n"
-            "TRAYECTORIA            \n"
-            "  ■ Cargo | Empresa    \n"
-            "    › Logro estratégico\n"
-            "FORMACIÓN · COMPETENCIAS"
-        )
+        "color": "#1B2A4A",
+        "ideal": "Dirección general · C-level · Consultoría · Banca",
+        "desc": "Nombre en mayúsculas con título en dorado, separador ancho, tipografía Georgia. Transmite autoridad y trayectoria desde la primera línea.",
+        "tags": ["#EDEEF2", "#1B2A4A"],
     },
     "Minimalista": {
         "icon": "⬜",
+        "color": "#444444",
         "ideal": "Cualquier sector · Máxima compatibilidad ATS",
-        "preview": (
-            "Juan Pérez             \n"
-            "Gerente de Operaciones \n"
-            "email | tel | ciudad   \n"
-            "                       \n"
-            "RESUMEN                \n"
-            "EXPERIENCIA            \n"
-            "Cargo — Empresa        \n"
-            "- Logro cuantificado   \n"
-            "EDUCACIÓN · HABILIDADES"
-        )
+        "desc": "Sin colores, sin elementos gráficos. El formato más seguro para sistemas ATS estrictos. Ideal si no sabes qué parser usa la empresa.",
+        "tags": ["#F5F5F5", "#444444"],
     },
 }
 
@@ -912,6 +902,11 @@ def show_results(cv_data, template, fn, fs, max_pages):
 def show_admin_panel():
     st.markdown("---")
     with st.expander("🛠️ Panel Admin"):
+        stats = get_global_stats()
+        a1, a2 = st.columns(2)
+        a1.metric("📄 CVs generados (total)", f"{stats['cvs']:,}")
+        a2.metric("👥 Usuarios registrados", f"{stats['users']:,}")
+        st.markdown("---")
         st.markdown("**Usuarios recientes:**")
         try:
             res = supabase.table("profiles").select("email,plan,credits_used_this_month").order("created_at", desc=True).limit(20).execute()
@@ -1032,24 +1027,23 @@ def show_main_app(user, profile):
     for col, tname in zip([tc1, tc2, tc3, tc4], TEMPLATES.keys()):
         info = TEMPLATES[tname]
         is_sel = st.session_state["template_choice"] == tname
-        border_col = "#1B6CA8" if is_sel else "#CCCCCC"
-        bg_col = "#E8F4FD" if is_sel else "#FAFAFA"
+        border_col = info["color"] if is_sel else "#CCCCCC"
+        bg_col = info["tags"][0] if is_sel else "#FAFAFA"
+        accent = info["color"]
         check = "✅ " if is_sel else ""
-        preview_html = info["preview"].replace("\n", "<br>")
         with col:
-            st.markdown(
-                f"""<div style="border:2px solid {border_col};border-radius:10px;
-                    padding:0.8rem;background:{bg_col};min-height:260px;">
-                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.2rem;">
-                    {check}{info["icon"]} {tname}</div>
-                <div style="font-size:0.75rem;color:#888;margin-bottom:0.5rem;">
-                    {info["ideal"]}</div>
-                <div style="font-family:monospace;font-size:0.68rem;color:#555;
-                    background:#F0F0F0;border-radius:4px;padding:0.4rem 0.5rem;
-                    line-height:1.5;">{preview_html}</div>
-                </div>""",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"""
+<div style="border:2px solid {border_col};border-radius:12px;
+    padding:1rem;background:{bg_col};min-height:230px;
+    transition:all 0.2s;">
+  <div style="font-size:1.6rem;margin-bottom:0.3rem;">{info["icon"]}</div>
+  <div style="font-weight:700;font-size:1rem;color:{accent};
+      margin-bottom:0.2rem;">{check}{tname}</div>
+  <div style="font-size:0.72rem;color:#777;margin-bottom:0.6rem;
+      font-style:italic;">{info["ideal"]}</div>
+  <div style="font-size:0.8rem;color:#444;line-height:1.5;">
+      {info["desc"]}</div>
+</div>""", unsafe_allow_html=True)
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
             if st.button(f"{'✅ Seleccionado' if is_sel else 'Seleccionar'}", key=f"tpl_{tname}",
                          use_container_width=True,

@@ -147,74 +147,33 @@ st.markdown("Elige un template. **Después de optimizar, puedes descargar en cua
 
 TEMPLATES = {
     "📋 Clásico": {
-        "desc": "Nombre centrado · Líneas azules · Bullets clásicos",
-        "ideal": "Finanzas, legal, gobierno, roles senior",
-        "preview": (
-            "─────────────────────────────\n"
-            "         JUAN PÉREZ          \n"
-            "   Gerente de Operaciones    \n"
-            "  email | tel | ciudad       \n"
-            "─────────────────────────────\n"
-            "RESUMEN PROFESIONAL          \n"
-            "─────────────────────────────\n"
-            "EXPERIENCIA PROFESIONAL      \n"
-            "  Cargo · Empresa | 2020-Actual\n"
-            "  • Logro con impacto medible\n"
-            "─────────────────────────────\n"
-            "EDUCACIÓN  /  HABILIDADES    "
-        )
+        "icon": "📋",
+        "color": "#2E75B6",
+        "ideal": "Finanzas · Legal · Gobierno · Roles senior",
+        "desc": "Nombre centrado, secciones con línea azul, bullets ordenados. El formato más reconocido y esperado por reclutadores tradicionales.",
+        "tags": ["#EBF3FB", "#2E75B6"],
     },
     "✨ Moderno": {
-        "desc": "Nombre en mayúsculas · Header navy/teal · Flechas ▸",
-        "ideal": "Tech, startups, marketing digital, diseño",
-        "preview": (
-            "JUAN PÉREZ                   \n"
-            "Gerente de Operaciones       \n"
-            "✉ email  ✆ tel  ⌖ ciudad    \n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "◆  PERFIL PROFESIONAL        \n"
-            "◆  EXPERIENCIA               \n"
-            "   Cargo — Empresa           \n"
-            "   2020-Actual               \n"
-            "   ▸ Logro con keywords ATS  \n"
-            "◆  HABILIDADES  ◆  IDIOMAS   "
-        )
+        "icon": "✨",
+        "color": "#178ACA",
+        "ideal": "Tech · Startups · Marketing · Diseño",
+        "desc": "Header con nombre en mayúsculas, secciones con rombos ◆ y flechas ▸. Diseño limpio que destaca sin sacrificar legibilidad ATS.",
+        "tags": ["#E8F7FD", "#178ACA"],
     },
     "🏛️ Ejecutivo": {
-        "desc": "Header con franja oscura · Dos columnas de contacto · Serifas",
-        "ideal": "Dirección general, C-level, consultoría senior, banca",
-        "preview": (
-            "████████████████████████████\n"
-            "  JUAN PÉREZ                \n"
-            "  Director General          \n"
-            "████████████████████████████\n"
-            "email · tel · LinkedIn      \n"
-            "────────────────────────────\n"
-            "PERFIL EJECUTIVO            \n"
-            "TRAYECTORIA PROFESIONAL     \n"
-            "  ■ Cargo  |  Empresa       \n"
-            "    Logro estratégico clave \n"
-            "────────────────────────────\n"
-            "FORMACIÓN  ·  COMPETENCIAS  "
-        )
+        "icon": "🏛️",
+        "color": "#1B2A4A",
+        "ideal": "Dirección general · C-level · Consultoría · Banca",
+        "desc": "Nombre en mayúsculas con título en dorado, separador ancho, tipografía Georgia. Transmite autoridad y trayectoria desde la primera línea.",
+        "tags": ["#EDEEF2", "#1B2A4A"],
     },
     "⬜ Minimalista": {
-        "desc": "Todo en gris oscuro · Sin colores · Máxima legibilidad ATS",
-        "ideal": "Cualquier sector · El más seguro para parsers ATS",
-        "preview": (
-            "Juan Pérez                   \n"
-            "Gerente de Operaciones       \n"
-            "email | tel | ciudad         \n"
-            "                             \n"
-            "RESUMEN                      \n"
-            "                             \n"
-            "EXPERIENCIA                  \n"
-            "Cargo — Empresa (2020-Actual)\n"
-            "- Logro cuantificado         \n"
-            "                             \n"
-            "EDUCACIÓN · HABILIDADES      "
-        )
-    }
+        "icon": "⬜",
+        "color": "#444444",
+        "ideal": "Cualquier sector · Máxima compatibilidad ATS",
+        "desc": "Sin colores, sin elementos gráficos. El formato más seguro para sistemas ATS estrictos. Ideal si no sabes qué parser usa la empresa.",
+        "tags": ["#F5F5F5", "#444444"],
+    },
 }
 
 if "template_choice" not in st.session_state:
@@ -223,24 +182,22 @@ if "template_choice" not in st.session_state:
 t_cols = st.columns(4)
 for i, (name, info) in enumerate(TEMPLATES.items()):
     is_sel = st.session_state["template_choice"] == name
-    border_col = "#1B6CA8" if is_sel else "#CCCCCC"
-    bg_col = "#E8F4FD" if is_sel else "#FAFAFA"
+    border_col = info["color"] if is_sel else "#CCCCCC"
+    bg_col = info["tags"][0] if is_sel else "#FAFAFA"
+    accent = info["color"]
     check = "✅ " if is_sel else ""
-    preview_html = info["preview"].replace("\n", "<br>")
     with t_cols[i]:
-        st.markdown(
-            f"""<div style="border:2px solid {border_col};border-radius:10px;
-                padding:0.8rem;background:{bg_col};min-height:260px;">
-            <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.2rem;">
-                {check}{name}</div>
-            <div style="font-size:0.75rem;color:#888;margin-bottom:0.5rem;">
-                {info["ideal"]}</div>
-            <div style="font-family:monospace;font-size:0.68rem;color:#555;
-                background:#F0F0F0;border-radius:4px;padding:0.4rem 0.5rem;
-                line-height:1.5;">{preview_html}</div>
-            </div>""",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"""
+<div style="border:2px solid {border_col};border-radius:12px;
+    padding:1rem;background:{bg_col};min-height:230px;">
+  <div style="font-size:1.6rem;margin-bottom:0.3rem;">{info["icon"]}</div>
+  <div style="font-weight:700;font-size:1rem;color:{accent};
+      margin-bottom:0.2rem;">{check}{name}</div>
+  <div style="font-size:0.72rem;color:#777;margin-bottom:0.6rem;
+      font-style:italic;">{info["ideal"]}</div>
+  <div style="font-size:0.8rem;color:#444;line-height:1.5;">
+      {info["desc"]}</div>
+</div>""", unsafe_allow_html=True)
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
         if st.button(f"{'✅ Seleccionado' if is_sel else 'Seleccionar'}", key=f"tpl_{i}",
                      use_container_width=True,
