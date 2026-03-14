@@ -106,6 +106,16 @@ def sign_out():
         st.session_state.pop(key, None)
     st.rerun()
 
+def send_password_reset(email: str) -> tuple[bool, str]:
+    try:
+        supabase.auth.reset_password_email(
+            email,
+            options={"redirect_to": "https://analyze-this-v2.streamlit.app"}
+        )
+        return True, "✅ Te enviamos un email con el link para restablecer tu contraseña."
+    except Exception as e:
+        return False, f"No se pudo enviar el email: {e}"
+
 def get_profile(user_id: str) -> dict:
     try:
         res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
@@ -185,6 +195,20 @@ def show_auth_page():
                     st.rerun()
                 else:
                     st.error(msg)
+
+        # Forgot password
+        with st.expander("¿Olvidaste tu contraseña?"):
+            reset_email = st.text_input("Email de tu cuenta", key="reset_email")
+            if st.button("Enviar link de recuperación", key="btn_reset"):
+                if not reset_email:
+                    st.error("Ingresa tu email.")
+                else:
+                    with st.spinner("Enviando..."):
+                        ok, msg = send_password_reset(reset_email)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
 
     with tab_signup:
         st.markdown("Crea tu cuenta gratuita — incluye **5 optimizaciones por mes**.")
@@ -334,26 +358,40 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
 }}"""
 
     client = anthropic.Anthropic(api_key=api_key)
-    for attempt in range(2):
-        msg = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=5000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text.strip()
-        if "```json" in raw:
-            raw = raw.split("```json")[1].split("```")[0].strip()
-        elif "```" in raw:
-            raw = raw.split("```")[1].split("```")[0].strip()
-        try:
-            result = json.loads(raw)
-            result["_was_truncated"] = was_truncated
-            return result
-        except json.JSONDecodeError:
-            if attempt == 0:
-                time.sleep(1)
-                continue
-            raise
+
+    def call_model(model_id: str) -> dict:
+        for attempt in range(2):
+            msg = client.messages.create(
+                model=model_id,
+                max_tokens=5000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw = msg.content[0].text.strip()
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0].strip()
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                raise
+
+    # Paso 1: Haiku hace el análisis inicial (costo ~$0.01-0.02)
+    result = call_model("claude-haiku-4-5-20251001")
+    result["_was_truncated"] = was_truncated
+    result["_model_used"] = "haiku"
+
+    # Paso 2: Si score < 60, Opus reanaliza con más profundidad (~$0.15-0.20)
+    # Solo ocurre cuando el candidato realmente necesita optimización más inteligente
+    if result.get("score_match", 100) < 60:
+        result = call_model("claude-opus-4-5-20251101")
+        result["_was_truncated"] = was_truncated
+        result["_model_used"] = "opus"
+
+    return result
 
 # ─── DOCX helpers ─────────────────────────────────────────────────────────────
 def add_section_header(doc, title, color_rgb, fn, body_size, border_color, prefix=""):
@@ -507,6 +545,9 @@ def show_results(cv_data, template, fn, fs, max_pages):
     st.subheader("📊 Análisis de Compatibilidad")
     if cv_data.get("_was_truncated"):
         st.markdown('<div class="warn-truncate">⚠️ CV muy extenso — se analizaron los primeros 12.000 caracteres. Toda la info relevante fue capturada.</div>', unsafe_allow_html=True)
+    model_used = cv_data.get("_model_used", "haiku")
+    model_label = "⚡ Haiku (rápido)" if model_used == "haiku" else "🧠 Opus (profundo — score bajo detectado)"
+    st.caption(f"Modelo usado: {model_label}")
     ats_ok  = cv_data.get("ats_compatible", True)
     ats_msg = cv_data.get("ats_razon", "")
     score   = cv_data.get("score_match", 0)
