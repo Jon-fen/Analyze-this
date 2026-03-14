@@ -1,490 +1,788 @@
+# CV Optimizer ATS — app2.py (v2, con usuarios y créditos)
+# Requiere en Streamlit Secrets:
+#   ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_KEY
+
 import streamlit as st
 import anthropic
-import fitz
-import extract_msg
-import holidays
-import json, re, time, base64, os, shutil, zipfile, tempfile
-from datetime import date, timedelta
-from pathlib import Path
+import pdfplumber
+from docx import Document as DocxDocument
+from docx.shared import Pt, RGBColor, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+import io, json, re, time
+import requests
+from bs4 import BeautifulSoup
+from supabase import create_client, Client
+from datetime import datetime, timezone
 
-# ── Configuración de página ───────────────────────────────────
-st.set_page_config(
-    page_title="Clasificador de Documentos",
-    page_icon="📄",
-    layout="centered"
-)
+MAX_CV_CHARS = 12_000
 
-# ── Estilos ───────────────────────────────────────────────────
+# ─── Page config ──────────────────────────────────────────────────────────────
+st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="centered")
+
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'IBM Plex Sans', sans-serif;
-    }
-    h1, h2, h3 {
-        font-family: 'IBM Plex Mono', monospace !important;
-    }
-    .stApp {
-        background-color: #0f1117;
-        color: #e8e8e8;
-    }
-    .header-block {
-        background: linear-gradient(135deg, #1a1f2e 0%, #0f1117 100%);
-        border: 1px solid #2a3040;
-        border-left: 4px solid #4f9cf9;
-        padding: 1.5rem 2rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-    }
-    .stat-box {
-        background: #1a1f2e;
-        border: 1px solid #2a3040;
-        border-radius: 6px;
-        padding: 1rem;
-        text-align: center;
-    }
-    .stat-num { font-size: 2rem; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
-    .stat-ok   { color: #4ade80; }
-    .stat-warn { color: #facc15; }
-    .stat-err  { color: #f87171; }
-    .stat-label { font-size: 0.75rem; color: #888; margin-top: 0.2rem; }
-    .result-row {
-        background: #1a1f2e;
-        border: 1px solid #2a3040;
-        border-radius: 6px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.5rem;
-        font-family: 'IBM Plex Mono', monospace;
-        font-size: 0.8rem;
-    }
-    .badge-ok   { color: #4ade80; }
-    .badge-warn { color: #facc15; }
-    .badge-err  { color: #f87171; }
-    .limit-note {
-        background: #1a1f2e;
-        border: 1px solid #facc15;
-        border-radius: 6px;
-        padding: 0.6rem 1rem;
-        font-size: 0.8rem;
-        color: #facc15;
-        margin-bottom: 1rem;
-    }
+.block-container { padding-top: 2rem; padding-bottom: 2rem; }
+div[data-testid="stDownloadButton"] button {
+    background-color: #1B6CA8; color: white;
+    font-size: 1rem; padding: 0.6rem 1.5rem;
+    border-radius: 6px; width: 100%; }
+.coach-card { background: #F0F9FF; border-left: 4px solid #2E75B6;
+              padding: 0.75rem 1rem; border-radius: 4px;
+              margin-bottom: 0.5rem; font-size: 0.95rem; }
+.score-explain { background: #F8F8F8; border-radius: 8px;
+                 padding: 0.75rem 1rem; font-size: 0.9rem;
+                 color: #444; margin-top: 0.5rem; }
+.credit-badge { background: #E8F5E9; border: 1px solid #4CAF50;
+                border-radius: 20px; padding: 0.2rem 0.8rem;
+                font-size: 0.85rem; font-weight: 600; color: #2E7D32;
+                display: inline-block; }
+.credit-low   { background: #FFF3E0; border-color: #FF9800; color: #E65100; }
+.credit-zero  { background: #FFEBEE; border-color: #F44336; color: #B71C1C; }
+.warn-truncate { background: #FFF8E1; border-left: 3px solid #FFA000;
+                 padding: 0.5rem 0.8rem; border-radius: 4px;
+                 font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ────────────────────────────────────────────────────
-st.markdown("""
-<div class="header-block">
-    <h1 style="margin:0; font-size:1.4rem; color:#4f9cf9;">📄 CLASIFICADOR DE DOCUMENTOS</h1>
-    <p style="margin:0.3rem 0 0 0; color:#888; font-size:0.85rem;">
-        Hospital Dr. Guillermo Grant Benavente · Anthropic Claude Haiku
-    </p>
-</div>
-""", unsafe_allow_html=True)
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+def get_secret(key: str, default=None):
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return default
 
-# ── Límite de archivos ────────────────────────────────────────
-LIMITE_ARCHIVOS = 30
+ANTHROPIC_KEY = get_secret("ANTHROPIC_API_KEY")
+SUPABASE_URL  = get_secret("SUPABASE_URL")
+SUPABASE_KEY  = get_secret("SUPABASE_KEY")
 
-# ── API Key desde secrets o input manual ─────────────────────
-api_key = None
-if "ANTHROPIC_API_KEY" in st.secrets:
-    api_key = st.secrets["ANTHROPIC_API_KEY"]
-else:
-    api_key = st.text_input(
-        "🔑 API Key de Anthropic",
-        type="password",
-        placeholder="sk-ant-...",
-        help="Obtén tu key en console.anthropic.com"
+PLAN_CREDITS = {"free": 5, "pro": 50, "admin": 999999}
+
+# ─── Supabase client ──────────────────────────────────────────────────────────
+@st.cache_resource
+def get_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase = get_supabase()
+
+# ─── Auth helpers ─────────────────────────────────────────────────────────────
+def sign_up(email: str, password: str) -> tuple[bool, str]:
+    try:
+        res = supabase.auth.sign_up({"email": email, "password": password})
+        if res.user:
+            # Create profile row with free credits
+            supabase.table("profiles").insert({
+                "id": res.user.id,
+                "email": email,
+                "plan": "free",
+                "credits_used_this_month": 0,
+                "credits_reset_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            return True, "✅ Cuenta creada. Revisa tu email para confirmar."
+        return False, "Error al crear cuenta."
+    except Exception as e:
+        return False, str(e)
+
+def sign_in(email: str, password: str) -> tuple[bool, str]:
+    try:
+        res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if res.user:
+            st.session_state["user"] = res.user
+            st.session_state["session"] = res.session
+            return True, ""
+        return False, "Credenciales incorrectas."
+    except Exception as e:
+        return False, "Email o contraseña incorrectos."
+
+def sign_out():
+    try:
+        supabase.auth.sign_out()
+    except Exception:
+        pass
+    for key in ["user","session","cv_data","regen_docx","api_credits_error"]:
+        st.session_state.pop(key, None)
+    st.rerun()
+
+def get_profile(user_id: str) -> dict:
+    try:
+        res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+        return res.data or {}
+    except Exception:
+        return {}
+
+def get_credits_remaining(profile: dict) -> int:
+    plan = profile.get("plan", "free")
+    if plan == "admin":
+        return 999999
+    monthly_limit = PLAN_CREDITS.get(plan, 5)
+    used = profile.get("credits_used_this_month", 0)
+    # Auto-reset if new month
+    reset_at_str = profile.get("credits_reset_at", "")
+    try:
+        reset_at = datetime.fromisoformat(reset_at_str.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        if now.month != reset_at.month or now.year != reset_at.year:
+            # Reset credits
+            supabase.table("profiles").update({
+                "credits_used_this_month": 0,
+                "credits_reset_at": now.isoformat()
+            }).eq("id", profile["id"]).execute()
+            used = 0
+    except Exception:
+        pass
+    return max(0, monthly_limit - used)
+
+def consume_credit(user_id: str, current_used: int):
+    supabase.table("profiles").update({
+        "credits_used_this_month": current_used + 1
+    }).eq("id", user_id).execute()
+
+def save_history(user_id: str, job_title: str, score: int, ats_ok: bool):
+    try:
+        supabase.table("history").insert({
+            "user_id": user_id,
+            "job_title": job_title[:120],
+            "score_match": score,
+            "ats_compatible": ats_ok,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+    except Exception:
+        pass
+
+def get_history(user_id: str) -> list:
+    try:
+        res = (supabase.table("history")
+               .select("*")
+               .eq("user_id", user_id)
+               .order("created_at", desc=True)
+               .limit(10)
+               .execute())
+        return res.data or []
+    except Exception:
+        return []
+
+# ─── Auth wall ────────────────────────────────────────────────────────────────
+def show_auth_page():
+    st.title("🎯 CV Optimizer ATS")
+    st.markdown("Adapta tu CV a cualquier oferta y supera los filtros automáticos.")
+    st.markdown("---")
+
+    tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "📝 Crear cuenta"])
+
+    with tab_login:
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Contraseña", type="password", key="login_pw")
+        if st.button("Entrar", use_container_width=True, key="btn_login"):
+            if not email or not password:
+                st.error("Completa email y contraseña.")
+            else:
+                with st.spinner("Verificando..."):
+                    ok, msg = sign_in(email, password)
+                if ok:
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    with tab_signup:
+        st.markdown("Crea tu cuenta gratuita — incluye **5 optimizaciones por mes**.")
+        email2 = st.text_input("Email", key="signup_email")
+        password2 = st.text_input("Contraseña (mín. 8 caracteres)", type="password", key="signup_pw")
+        password3 = st.text_input("Confirmar contraseña", type="password", key="signup_pw2")
+        if st.button("Crear cuenta", use_container_width=True, key="btn_signup"):
+            if not email2 or not password2:
+                st.error("Completa todos los campos.")
+            elif password2 != password3:
+                st.error("Las contraseñas no coinciden.")
+            elif len(password2) < 8:
+                st.error("La contraseña debe tener al menos 8 caracteres.")
+            else:
+                with st.spinner("Creando cuenta..."):
+                    ok, msg = sign_up(email2, password2)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+
+    st.markdown("---")
+    st.markdown("**Planes disponibles:**")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        with st.container(border=True):
+            st.markdown("**🆓 Free**\n5 optimizaciones/mes\nCV descargable\nAnálisis ATS + coaching")
+    with c2:
+        with st.container(border=True):
+            st.markdown("**⭐ Pro**\n50 optimizaciones/mes\nTodo lo de Free\nHistorial completo")
+    with c3:
+        with st.container(border=True):
+            st.markdown("**🏢 Admin**\nUso ilimitado\nPanel de gestión\nVista de todos los usuarios")
+
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.warning("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets.")
+
+# ─── Extraction helpers ────────────────────────────────────────────────────────
+def is_valid_url(url: str) -> bool:
+    return bool(re.match(r'^https?://', url.strip()))
+
+def scrape_job_url(url: str) -> str:
+    headers = {"User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )}
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+    except requests.exceptions.Timeout:
+        raise ValueError("El sitio tardó demasiado. Pega el texto manualmente.")
+    except requests.exceptions.HTTPError as e:
+        raise ValueError(f"No se pudo acceder ({e.response.status_code}).")
+    except Exception:
+        raise ValueError("No se pudo acceder al link.")
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for tag in soup(["script","style","nav","footer","header","aside","form","noscript","iframe"]):
+        tag.decompose()
+    text = ""
+    for sel in [
+        {"class": lambda c: c and any(k in " ".join(c).lower() for k in
+            ["job-description","description","vacancy","posting","details","content"])},
+        {"id": lambda i: i and any(k in i.lower() for k in ["job-description","description","details"])},
+    ]:
+        block = soup.find(attrs=sel)
+        if block:
+            text = block.get_text(separator="\n", strip=True)
+            if len(text) > 200:
+                break
+    if not text or len(text) < 200:
+        text = soup.get_text(separator="\n", strip=True)
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    return "\n".join(lines)[:8000]
+
+def extract_pdf(file) -> str:
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            t = page.extract_text()
+            if t:
+                text += t + "\n"
+    return text.strip()
+
+def extract_docx(file) -> str:
+    doc = DocxDocument(file)
+    return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+
+# ─── Claude optimization ──────────────────────────────────────────────────────
+def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size) -> dict:
+    api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
+    was_truncated = len(cv_text) > MAX_CV_CHARS
+    cv_text = cv_text[:MAX_CV_CHARS]
+
+    words_per_page = {9: 700, 10: 600, 10.5: 560, 11: 520, 12: 460}
+    max_words = words_per_page.get(float(font_size), 580) * max_pages
+
+    prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
+
+INSTRUCCIONES:
+1. Selecciona SOLO el contenido más relevante para esta oferta — NO inventes nada
+2. Integra las palabras clave exactas de la oferta de forma natural
+3. Reescribe logros con verbos de acción + impacto medible
+4. Respeta el límite de {max_pages} página(s) ≈ {max_words} palabras
+5. Evalúa compatibilidad ATS: sin tablas ni columnas que confundan parsers
+
+CV ORIGINAL:
+{cv_text}
+
+OFERTA DE TRABAJO:
+{job_text}
+
+Responde ÚNICAMENTE con JSON válido, sin backticks:
+{{
+  "nombre": "nombre completo",
+  "titulo_profesional": "título adaptado al puesto",
+  "email": "email o vacío",
+  "telefono": "teléfono o vacío",
+  "linkedin": "URL o vacío",
+  "ubicacion": "ciudad, país",
+  "resumen_profesional": "3-4 oraciones con keywords ATS.",
+  "experiencia": [{{
+    "empresa": "nombre",
+    "cargo": "cargo",
+    "periodo": "mes/año - mes/año",
+    "logros": ["Logro cuantificado con keyword ATS"]
+  }}],
+  "educacion": [{{"institucion":"","titulo":"","periodo":"","detalle":""}}],
+  "habilidades_tecnicas": ["skill relevante"],
+  "habilidades_blandas": ["máx 4"],
+  "idiomas": ["Español - Nativo"],
+  "certificaciones": ["solo si existen"],
+  "ats_compatible": true,
+  "ats_razon": "Una frase sobre compatibilidad ATS",
+  "score_match": 82,
+  "score_desglose": {{"keywords":88,"experiencia":80,"educacion":75,"habilidades":85}},
+  "score_explicacion": "2-3 oraciones sobre el score.",
+  "keywords_integradas": ["kw1"],
+  "keywords_faltantes": ["kw ausente"],
+  "coaching": [
+    {{"categoria": "Tu fortaleza clave 💪", "tip": "Qué tiene el candidato valioso y cómo destacarlo."}},
+    {{"categoria": "Brecha crítica 🎯", "tip": "Skill que falta y cómo cerrarla con curso/cert específica."}},
+    {{"categoria": "Quick win de hoy ⚡", "tip": "Acción concreta en menos de 1 hora para mejorar candidatura."}},
+    {{"categoria": "LinkedIn / Marca personal 🔗", "tip": "Qué cambiar en LinkedIn para este rol."}},
+    {{"categoria": "Antes de la entrevista 📋", "tip": "Qué investigar y qué narrativa preparar."}}
+  ]
+}}"""
+
+    client = anthropic.Anthropic(api_key=api_key)
+    for attempt in range(2):
+        msg = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=5000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = msg.content[0].text.strip()
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+        try:
+            result = json.loads(raw)
+            result["_was_truncated"] = was_truncated
+            return result
+        except json.JSONDecodeError:
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            raise
+
+# ─── DOCX helpers ─────────────────────────────────────────────────────────────
+def add_section_header(doc, title, color_rgb, fn, body_size, border_color, prefix=""):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(body_size)
+    p.paragraph_format.space_after = Pt(body_size * 0.3)
+    run = p.add_run(f"{prefix}{title}")
+    run.bold = True
+    run.font.name = fn
+    run.font.size = Pt(body_size + 1)
+    run.font.color.rgb = RGBColor(*color_rgb)
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement('w:pBdr')
+    pPr.append(pBdr)
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '6')
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), border_color)
+    pBdr.append(bottom)
+
+def R(run, fn, fs, bold=False, italic=False, color=None):
+    run.font.name = fn
+    run.font.size = Pt(float(fs))
+    run.bold = bold
+    run.italic = italic
+    if color:
+        run.font.color.rgb = RGBColor(*color)
+    return run
+
+def build_classic(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument()
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.0)
+    s.top_margin = Inches(0.8)
+    s.bottom_margin = Inches(0.8)
+    DARK=(0x1A,0x1A,0x2E); BLUE=(0x2E,0x75,0xB6); GRAY=(0x66,0x66,0x66)
+    def hdr(t): add_section_header(doc, t, BLUE, fn, fs, "2E75B6")
+    p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    R(p.add_run(cv.get("nombre","")), fn, fs+9, bold=True, color=DARK)
+    p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    R(p.add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=BLUE)
+    parts=[x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts:
+        p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        R(p.add_run("  |  ".join(parts)), fn, fs-1, color=GRAY)
+    if cv.get("resumen_profesional"):
+        hdr("RESUMEN PROFESIONAL")
+        R(doc.add_paragraph().add_run(cv["resumen_profesional"]), fn, fs)
+    if cv.get("experiencia"):
+        hdr("EXPERIENCIA PROFESIONAL")
+        for exp in cv["experiencia"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.6)
+            R(p.add_run(exp.get("cargo","")), fn, fs, bold=True)
+            p2=doc.add_paragraph()
+            R(p2.add_run(f"{exp.get('empresa','')}   |   {exp.get('periodo','')}"), fn, fs-1, italic=True, color=GRAY)
+            for logro in exp.get("logros",[]):
+                pb=doc.add_paragraph(style="List Bullet")
+                pb.paragraph_format.left_indent=Inches(0.2); pb.paragraph_format.space_after=Pt(2)
+                R(pb.add_run(logro), fn, fs)
+    if cv.get("educacion"):
+        hdr("EDUCACIÓN")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.5)
+            R(p.add_run(edu.get("titulo","")), fn, fs, bold=True)
+            p2=doc.add_paragraph()
+            R(p2.add_run(f"{edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1, italic=True, color=GRAY)
+            if edu.get("detalle"): R(doc.add_paragraph().add_run(edu["detalle"]), fn, fs-1)
+    for label, key, header in [
+        (None,"habilidades_tecnicas","HABILIDADES TÉCNICAS"),
+        (None,"habilidades_blandas","COMPETENCIAS"),
+    ]:
+        if cv.get(key):
+            hdr(header)
+            R(doc.add_paragraph().add_run("  •  ".join(cv[key])), fn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS"); R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs=[c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("CERTIFICACIONES")
+        for cert in certs: R(doc.add_paragraph().add_run(f"• {cert}"), fn, fs)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+def build_modern(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument()
+    s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(0.75)
+    s.top_margin = Inches(0.6)
+    s.bottom_margin = Inches(0.8)
+    NAVY=(0x1B,0x4F,0x72); TEAL=(0x17,0x8A,0xCA); GRAY=(0x77,0x77,0x77)
+    def hdr(t): add_section_header(doc, t, NAVY, fn, fs, "17A8CA", prefix="◆  ")
+    R(doc.add_paragraph().add_run(cv.get("nombre","").upper()), fn, fs+11, bold=True, color=NAVY)
+    R(doc.add_paragraph().add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=TEAL)
+    parts=[]
+    for icon,key in [("✉","email"),("✆","telefono"),("⌖","ubicacion"),("in","linkedin")]:
+        if cv.get(key): parts.append(f"{icon} {cv[key]}")
+    if parts: R(doc.add_paragraph().add_run("   |   ".join(parts)), fn, fs-1, color=GRAY)
+    p_div=doc.add_paragraph(); p_div.paragraph_format.space_after=Pt(8)
+    pPr=p_div._p.get_or_add_pPr(); pBdr=OxmlElement('w:pBdr'); pPr.append(pBdr)
+    btm=OxmlElement('w:bottom')
+    for a,v in [('w:val','single'),('w:sz','16'),('w:space','1'),('w:color','1B4F72')]: btm.set(qn(a),v)
+    pBdr.append(btm)
+    if cv.get("resumen_profesional"):
+        hdr("PERFIL PROFESIONAL")
+        p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+        R(p.add_run(cv["resumen_profesional"]), fn, fs)
+    if cv.get("experiencia"):
+        hdr("EXPERIENCIA")
+        for exp in cv["experiencia"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.7); p.paragraph_format.left_indent=Inches(0.15)
+            R(p.add_run(exp.get("cargo","")), fn, fs, bold=True, color=NAVY)
+            R(p.add_run("  —  "), fn, fs)
+            R(p.add_run(exp.get("empresa","")), fn, fs)
+            p2=doc.add_paragraph(); p2.paragraph_format.left_indent=Inches(0.15)
+            R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=TEAL)
+            for logro in exp.get("logros",[]):
+                pb=doc.add_paragraph(); pb.paragraph_format.left_indent=Inches(0.35); pb.paragraph_format.space_after=Pt(2)
+                R(pb.add_run(f"▸  {logro}"), fn, fs)
+    if cv.get("educacion"):
+        hdr("EDUCACIÓN")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15); p.paragraph_format.space_before=Pt(fs*0.5)
+            R(p.add_run(edu.get("titulo","")), fn, fs, bold=True, color=NAVY)
+            R(p.add_run(f"   |   {edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1)
+            if edu.get("detalle"):
+                p2=doc.add_paragraph(); p2.paragraph_format.left_indent=Inches(0.15)
+                R(p2.add_run(edu["detalle"]), fn, fs-1)
+    if cv.get("habilidades_tecnicas") or cv.get("habilidades_blandas"):
+        hdr("HABILIDADES")
+        for label,key in [("Técnicas: ","habilidades_tecnicas"),("Competencias: ","habilidades_blandas")]:
+            if cv.get(key):
+                p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+                R(p.add_run(label), fn, fs, bold=True); R(p.add_run("  •  ".join(cv[key])), fn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS")
+        p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+        R(p.add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs=[c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("CERTIFICACIONES")
+        for cert in certs:
+            p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+            R(p.add_run(f"▸  {cert}"), fn, fs)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+# ─── Results display ──────────────────────────────────────────────────────────
+def show_results(cv_data, template, fn, fs, max_pages):
+    st.markdown("---")
+    st.subheader("📊 Análisis de Compatibilidad")
+    if cv_data.get("_was_truncated"):
+        st.markdown('<div class="warn-truncate">⚠️ CV muy extenso — se analizaron los primeros 12.000 caracteres. Toda la info relevante fue capturada.</div>', unsafe_allow_html=True)
+    ats_ok  = cv_data.get("ats_compatible", True)
+    ats_msg = cv_data.get("ats_razon", "")
+    score   = cv_data.get("score_match", 0)
+    sc_col  = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+    bc, sc = st.columns([1,2])
+    with bc:
+        if ats_ok: st.success("✅ ATS Compatible")
+        else: st.error("❌ No ATS Compatible")
+        if ats_msg: st.caption(ats_msg)
+    with sc:
+        st.metric(f"{sc_col} Match con la oferta (estimado por IA)", f"{score}%")
+        explain = cv_data.get("score_explicacion","")
+        if explain: st.markdown(f'<div class="score-explain">{explain}</div>', unsafe_allow_html=True)
+    desglose = cv_data.get("score_desglose",{})
+    if desglose:
+        with st.expander("📈 Ver desglose"):
+            d1,d2,d3,d4=st.columns(4)
+            d1.metric("Keywords",    f"{desglose.get('keywords','-')}%")
+            d2.metric("Experiencia", f"{desglose.get('experiencia','-')}%")
+            d3.metric("Educación",   f"{desglose.get('educacion','-')}%")
+            d4.metric("Habilidades", f"{desglose.get('habilidades','-')}%")
+    st.markdown("---")
+    k1,k2=st.columns(2)
+    with k1:
+        kw_ok=cv_data.get("keywords_integradas",[])
+        if kw_ok: st.success(f"✅ **Keywords integradas ({len(kw_ok)}):**\n"+", ".join(kw_ok))
+    with k2:
+        kw_miss=cv_data.get("keywords_faltantes",[])
+        if kw_miss: st.warning(f"⚠️ **Keywords ausentes ({len(kw_miss)}):**\n"+", ".join(kw_miss))
+    coaching=cv_data.get("coaching",[])
+    if coaching:
+        st.markdown("---")
+        st.subheader("🎯 Tu Plan de Acción")
+        st.markdown("Recomendaciones personalizadas para **esta** postulación:")
+        for tip in coaching:
+            st.markdown(f'<div class="coach-card"><strong>{tip.get("categoria","")}</strong><br>{tip.get("tip","")}</div>', unsafe_allow_html=True)
+    st.markdown("---")
+    with st.spinner(f"Generando DOCX — {template} · {fn} {fs}pt · {max_pages}p..."):
+        try:
+            buf = build_classic(cv_data,fn,fs) if template=="Clásico" else build_modern(cv_data,fn,fs)
+        except Exception as e:
+            st.error(f"Error generando el documento: {e}"); return
+    nombre = cv_data.get("nombre","cv").replace(" ","_")
+    st.success("✅ ¡Tu CV optimizado está listo!")
+    st.download_button(
+        label=f"⬇️  Descargar CV — {template} · {fn} {fs}pt  (.docx)",
+        data=buf,
+        file_name=f"CV_ATS_{nombre}_{template}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-if not api_key:
-    st.info("Ingresa tu API Key de Anthropic para continuar.")
-    st.stop()
-
-# ── Tipo de archivo ───────────────────────────────────────────
-tipo_archivo = st.radio(
-    "Tipo de archivos a procesar",
-    ["📨 Correos .MSG (con PDFs adjuntos)", "📄 PDFs directamente"],
-    horizontal=True
-)
-es_msg = tipo_archivo.startswith("📨")
-
-# ── Upload ────────────────────────────────────────────────────
-st.markdown(f'<div class="limit-note">⚠️ Límite: máximo {LIMITE_ARCHIVOS} archivos por sesión</div>', unsafe_allow_html=True)
-
-ext = "msg" if es_msg else "pdf"
-archivos = st.file_uploader(
-    f"Sube tus archivos .{ext.upper()}",
-    type=[ext],
-    accept_multiple_files=True
-)
-
-if not archivos:
-    st.stop()
-
-if len(archivos) > LIMITE_ARCHIVOS:
-    st.error(f"❌ Subiste {len(archivos)} archivos. El límite es {LIMITE_ARCHIVOS} por sesión.")
-    st.stop()
-
-st.success(f"✅ {len(archivos)} archivo(s) recibidos")
-
-# ── Lógica de procesamiento ───────────────────────────────────
-
-def get_feriados_chile(año):
-    return holidays.Chile(years=año)
-
-def contar_dias_habiles(desde_str, hasta_str):
-    try:
-        desde = date.fromisoformat(desde_str)
-        hasta = date.fromisoformat(hasta_str)
-        feriados_cl = {}
-        for año in set(range(desde.year, hasta.year + 1)):
-            feriados_cl.update(get_feriados_chile(año))
-        count, d = 0, desde
-        while d <= hasta:
-            if d.weekday() < 5 and d not in feriados_cl:
-                count += 1
-            d += timedelta(days=1)
-        return count
-    except: return None
-
-def contar_dias_corridos(desde_str, hasta_str):
-    try:
-        return (date.fromisoformat(hasta_str) - date.fromisoformat(desde_str)).days + 1
-    except: return None
-
-def validar_dias(datos):
-    tipo     = datos.get('tipo', '')
-    dias_doc = datos.get('dias')
-    f_desde  = datos.get('fecha_desde')
-    f_hasta  = datos.get('fecha_hasta')
-    if not f_desde or not dias_doc:
-        return dias_doc, None, None, 'Sin datos suficientes'
-    f_hasta_real = f_hasta or f_desde
-    if tipo in ('Feriado Legal', 'Permiso Administrativo'):
-        dias_calc = contar_dias_habiles(f_desde, f_hasta_real)
-        modo = 'días hábiles'
-    elif tipo == 'Permiso Sin Goce':
-        dias_calc = contar_dias_corridos(f_desde, f_hasta_real)
-        modo = 'días corridos'
-    else:
-        return dias_doc, None, None, 'No aplica'
-    if dias_calc is None:
-        return dias_doc, None, None, 'Error al calcular'
-    return dias_doc, dias_calc, (int(dias_doc) == dias_calc), f'{modo}: doc={dias_doc}, calc={dias_calc}'
-
-PROMPT = """
-Analiza este documento administrativo o médico escaneado en español de un hospital o institución pública chilena.
-
-Clasifica el tipo según estas categorías EXACTAS:
-- "No Marcacion"          : justificación de no marcación en reloj biométrico
-- "Feriado Legal"         : permiso por feriado legal (días hábiles)
-- "Permiso Administrativo": permiso administrativo (días hábiles)
-- "Permiso Sin Goce"      : permiso sin goce de sueldo (días corridos)
-- "Resolucion"            : resolución oficial numerada
-- "Audiometria"           : examen o informe de audiometría
-- "Audioimped"            : examen o informe de audioimped (impedanciometría)
-- "Otro"                  : cualquier otro tipo no listado
-
-════════════════════════════════════════════════
-REGLA CRÍTICA SOBRE FECHAS:
-════════════════════════════════════════════════
-1. "fecha_solicitud" → Cuando pidió el permiso. ⚠️ NO usar para el nombre.
-2. "fecha_desde"     → Primer día EFECTIVO. ✅ Fecha principal.
-3. "fecha_hasta"     → Último día EFECTIVO. ✅ Incluir si aparece.
-
-Para No Marcación: fecha efectiva = día en que no marcó.
-Para exámenes: fecha efectiva = fecha del examen.
-Si solo hay una fecha, asúmela como fecha_desde.
-════════════════════════════════════════════════
-
-SOBRE DÍAS: Extrae el valor EXACTO del campo "Cantidad de días".
-NO calcules — solo lo que dice el documento. Si no aparece, usa null.
-
-SOBRE SUBTIPO: Si tipo es "Otro", describe el documento en 2-3 palabras
-descriptivas en español (ej: Certificado Medico, Licencia Medica, Contrato Honorarios).
-
-Responde ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones.
-{
-  "tipo"              : "categoría exacta",
-  "subtipo"           : "descripción 2-3 palabras si tipo=Otro, si no null",
-  "nombre"            : "APELLIDO NOMBRE en mayúsculas tal como aparece",
-  "fecha_solicitud"   : "YYYY-MM-DD o null",
-  "fecha_desde"       : "YYYY-MM-DD — día efectivo de inicio",
-  "fecha_hasta"       : "YYYY-MM-DD — día efectivo de término o null",
-  "hora"              : "HH:MM solo para No Marcacion, si no null",
-  "entrada_salida"    : "ENTRADA o SALIDA solo para No Marcacion, si no null",
-  "dias"              : número entero del documento o null,
-  "numero_resolucion" : "número si tipo=Resolucion, si no null",
-  "confianza"         : "ALTA, MEDIA o BAJA según qué tan claro es el documento"
-}
-SOLO el JSON.
-"""
-
-def limpiar_nombre_persona(nombre, largo=35):
-    if not nombre: return 'Desconocido'
-    t = str(nombre).strip().title()
-    t = re.sub(r'[<>:"/\\|?*]', '', t)
-    t = re.sub(r'\s+', '_', t.strip())
-    return t[:largo]
-
-def fmt_fecha(f):
-    if not f: return None
-    try:
-        p = str(f).split('-')
-        return f"{p[2]}-{p[1]}-{p[0]}" if len(p) == 3 else f
-    except: return str(f)
-
-def limpiar_subtipo(texto, largo=20):
-    if not texto: return None
-    t = str(texto).strip().title()
-    t = re.sub(r'[<>:"/\\|?*\s]', '_', t)
-    return re.sub(r'_+', '_', t).strip('_')[:largo]
-
-def sufijo_dias(dias, f_desde, f_hasta):
-    if dias:
-        return f"{dias}dia" if int(dias) == 1 else f"{dias}dias"
-    if f_desde and (not f_hasta or f_hasta == f_desde):
-        return '1dia'
-    return None
-
-def generar_nombre_estandarizado(d):
-    tipo    = d.get('tipo', 'Otro')
-    nombre  = limpiar_nombre_persona(d.get('nombre'))
-    f_desde = fmt_fecha(d.get('fecha_desde'))
-    f_hasta = fmt_fecha(d.get('fecha_hasta'))
-    dias    = d.get('dias')
-    f_hasta_m = f_hasta if f_hasta and f_hasta != f_desde else None
-    f_efec    = f_desde or f_hasta
-    partes    = []
-
-    if tipo == 'No Marcacion':
-        partes += ['NM', nombre]
-        if f_efec: partes.append(f_efec)
-        es, hora = d.get('entrada_salida'), d.get('hora')
-        if es and hora: partes.append(f"{es}-{hora.replace(':', '')}")
-        elif es: partes.append(es)
-    elif tipo == 'Feriado Legal':
-        partes += ['FL', nombre]
-        if f_desde: partes.append(f_desde)
-        if f_hasta_m: partes.append(f_hasta_m)
-        s = sufijo_dias(dias, d.get('fecha_desde'), d.get('fecha_hasta'))
-        if s: partes.append(s)
-    elif tipo == 'Permiso Administrativo':
-        partes += ['PA', nombre]
-        if f_desde: partes.append(f_desde)
-        if f_hasta_m: partes.append(f_hasta_m)
-        s = sufijo_dias(dias, d.get('fecha_desde'), d.get('fecha_hasta'))
-        if s: partes.append(s)
-    elif tipo == 'Permiso Sin Goce':
-        partes += ['PSG', nombre]
-        if f_desde: partes.append(f_desde)
-        if f_hasta_m: partes.append(f_hasta_m)
-        s = sufijo_dias(dias, d.get('fecha_desde'), d.get('fecha_hasta'))
-        if s: partes.append(s)
-    elif tipo == 'Resolucion':
-        partes.append('RESOL')
-        if d.get('numero_resolucion'):
-            num = str(d['numero_resolucion']).replace('/', '-').replace('\\', '-')
-            partes.append(num)
-        partes.append(nombre)
-        if f_efec: partes.append(f_efec)
-    elif tipo == 'Audiometria':
-        partes += ['AUDIO', nombre]
-        if f_efec: partes.append(f_efec)
-    elif tipo == 'Audioimped':
-        partes += ['AUDIOIMP', nombre]
-        if f_efec: partes.append(f_efec)
-    else:
-        partes.append('OTRO')
-        subtipo = limpiar_subtipo(d.get('subtipo'))
-        if subtipo: partes.append(subtipo)
-        partes.append(nombre)
-        if f_efec: partes.append(f_efec)
-
-    nombre_final = '_'.join(filter(None, partes)) + '.pdf'
-    return nombre_final[:196] + '.pdf' if len(nombre_final) > 200 else nombre_final
-
-def pdf_a_imagen_base64(path):
-    """Retorna lista de imágenes base64 (máximo 2 páginas)."""
-    doc = fitz.open(path)
-    imagenes = []
-    for n in range(min(2, len(doc))):
-        pix = doc[n].get_pixmap(matrix=fitz.Matrix(120/72, 120/72))
-        imagenes.append(base64.standard_b64encode(pix.tobytes('png')).decode('utf-8'))
-    doc.close()
-    return imagenes
-
-def clasificar(client_ai, imagenes):
-    """imagenes: lista de strings base64 (1 o 2 páginas)."""
-    for intento in range(1, 4):
+# ─── Admin panel ──────────────────────────────────────────────────────────────
+def show_admin_panel():
+    st.markdown("---")
+    with st.expander("🛠️ Panel Admin"):
+        st.markdown("**Usuarios recientes:**")
         try:
-            contenido = []
-            for img_b64 in imagenes:
-                contenido.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_b64}})
-            contenido.append({'type': 'text', 'text': PROMPT})
-            r = client_ai.messages.create(
-                model='claude-haiku-4-5-20251001',
-                max_tokens=1024,
-                messages=[{'role': 'user', 'content': contenido}]
-            )
-            texto = r.content[0].text.strip()
-            texto = re.sub(r'^```[a-z]*\s*|\s*```$', '', texto, flags=re.MULTILINE).strip()
-            return json.loads(texto)
-        except json.JSONDecodeError:
-            if intento < 3: time.sleep(10)
+            res = supabase.table("profiles").select("email,plan,credits_used_this_month").order("created_at", desc=True).limit(20).execute()
+            if res.data:
+                for u in res.data:
+                    plan = u.get("plan","free")
+                    used = u.get("credits_used_this_month",0)
+                    limit = PLAN_CREDITS.get(plan, 5)
+                    st.markdown(f"- **{u.get('email','')}** · {plan} · {used}/{limit if plan != 'admin' else '∞'} créditos usados")
+            else:
+                st.info("No hay usuarios todavía.")
         except Exception as e:
-            if 'rate' in str(e).lower() or '429' in str(e):
-                time.sleep(60)
-            elif intento < 3:
-                time.sleep(10)
-    return None
+            st.error(f"Error cargando usuarios: {e}")
 
-# ── Botón de proceso ──────────────────────────────────────────
-if st.button("🚀 Clasificar documentos", type="primary", use_container_width=True):
+# ─── Main app (authenticated) ─────────────────────────────────────────────────
+def show_main_app(user, profile):
+    plan = profile.get("plan","free")
+    credits_left = get_credits_remaining(profile)
+    credits_used = profile.get("credits_used_this_month", 0)
+    monthly_limit = PLAN_CREDITS.get(plan, 5)
 
-    client_ai = anthropic.Anthropic(api_key=api_key)
+    # ── Sidebar ────────────────────────────────────────────────────────────
+    with st.sidebar:
+        st.header("👤 Mi cuenta")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        pdf_dir  = os.path.join(tmpdir, 'pdfs')
-        out_dir  = os.path.join(tmpdir, 'out')
-        os.makedirs(pdf_dir); os.makedirs(out_dir)
+        # Credit badge
+        badge_class = "credit-badge"
+        if credits_left == 0:
+            badge_class = "credit-badge credit-zero"
+        elif credits_left <= 2:
+            badge_class = "credit-badge credit-low"
 
-        # Extraer PDFs
-        pdfs = []
-        if es_msg:
-            for f in archivos:
-                msg_path = os.path.join(tmpdir, f.name)
-                with open(msg_path, 'wb') as fp: fp.write(f.read())
-                try:
-                    msg = extract_msg.Message(msg_path)
-                    for att in msg.attachments:
-                        fname = att.longFilename or att.shortFilename
-                        if fname and fname.lower().endswith('.pdf'):
-                            fp_pdf = os.path.join(pdf_dir, fname)
-                            i = 1
-                            while os.path.exists(fp_pdf):
-                                base, ext2 = os.path.splitext(fname)
-                                fp_pdf = os.path.join(pdf_dir, f'{base}_{i}{ext2}')
-                                i += 1
-                            with open(fp_pdf, 'wb') as fout: fout.write(att.data)
-                            pdfs.append(fp_pdf)
-                except Exception as e:
-                    st.warning(f"⚠️ Error leyendo {f.name}: {e}")
-        else:
-            for f in archivos:
-                fp = os.path.join(pdf_dir, f.name)
-                with open(fp, 'wb') as fp2: fp2.write(f.read())
-                pdfs.append(fp)
+        credit_display = "∞" if plan == "admin" else f"{credits_left}"
+        credit_label = "∞ créditos" if plan == "admin" else f"{credits_left} crédito{'s' if credits_left != 1 else ''} restante{'s' if credits_left != 1 else ''}"
+        st.markdown(f'<span class="{badge_class}">{plan.upper()} · {credit_label}</span>', unsafe_allow_html=True)
 
-        total = len(pdfs)
-        if total == 0:
-            st.error("No se encontraron PDFs para procesar.")
+        if plan != "admin":
+            st.progress(min(credits_used / monthly_limit, 1.0))
+            st.caption(f"{credits_used} / {monthly_limit} usados este mes")
+
+        if credits_left == 0 and plan != "admin":
+            st.warning("Sin créditos este mes. Contacta al admin para subir a Pro.")
+
+        # Fallback API key if service has no credits
+        if st.session_state.get("api_credits_error"):
+            st.warning("Servicio sin saldo. Usa tu propia API Key:")
+            user_key = st.text_input("🔑 Tu API Key", type="password")
+            if user_key:
+                st.session_state["user_api_key"] = user_key
+
+        st.markdown("---")
+        st.markdown("**📐 Formato del CV**")
+        max_pages = st.slider("Páginas máximas", 1, 3, 2)
+        font_family = st.selectbox("Tipografía",
+            ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0,
+            help="Calibri y Arial son las más amigables con ATS.")
+        font_size = st.select_slider("Tamaño de letra", options=[9,10,10.5,11,12], value=10)
+
+        if st.session_state.get("cv_data"):
+            st.markdown("---")
+            st.info("✅ Análisis guardado. Cambia formato y regenera sin re-llamar a Claude.")
+            if st.button("🔄 Regenerar DOCX", use_container_width=True):
+                st.session_state["regen_docx"] = True
+
+        st.markdown("---")
+        st.markdown("**¿Cómo funciona?**")
+        st.markdown("1. Sube tu CV (PDF o DOCX)")
+        st.markdown("2. Pega o linkea la oferta")
+        st.markdown("3. Configura formato y template")
+        st.markdown("4. Descarga tu CV optimizado")
+        st.markdown("---")
+        if st.button("🚪 Cerrar sesión", use_container_width=True):
+            sign_out()
+        st.caption("Powered by Claude AI · Anthropic")
+
+    # ── Header ─────────────────────────────────────────────────────────────
+    st.title("🎯 CV Optimizer ATS")
+    st.markdown(f"Hola, **{profile.get('email','').split('@')[0]}** 👋  Adapta tu CV y supera los filtros automáticos.")
+
+    # ── Admin panel ────────────────────────────────────────────────────────
+    if plan == "admin":
+        show_admin_panel()
+
+    # ── Historial ──────────────────────────────────────────────────────────
+    history = get_history(user.id)
+    if history:
+        with st.expander(f"📜 Historial de optimizaciones ({len(history)})"):
+            for h in history:
+                created = h.get("created_at","")[:10]
+                score = h.get("score_match",0)
+                ats = "✅" if h.get("ats_compatible") else "❌"
+                title = h.get("job_title","—")
+                sc_col = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+                st.markdown(f"- {created} · **{title}** · {ats} ATS · {sc_col} {score}%")
+
+    # ── Inputs ─────────────────────────────────────────────────────────────
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📄 Tu CV")
+        cv_file = st.file_uploader("Sube tu CV", type=["pdf","docx"], label_visibility="collapsed")
+        cv_text_manual = st.text_area("O pega el texto aquí", height=220,
+            placeholder="Pega el contenido de tu CV si no tienes archivo...")
+    with col2:
+        st.subheader("💼 Oferta Laboral")
+        job_url = st.text_input("🔗 Link de la oferta",
+            placeholder="https://www.linkedin.com/jobs/...")
+        job_description = st.text_area("O pega el texto aquí", height=215,
+            placeholder="Pega aquí el texto de la oferta...")
+
+    # ── Template ───────────────────────────────────────────────────────────
+    st.subheader("🎨 Template del CV")
+    tc1,tc2=st.columns(2)
+    with tc1:
+        with st.container(border=True):
+            st.markdown("**📋 Clásico**")
+            st.markdown("Formato tradicional. Finanzas, legal, gobierno, roles senior.")
+    with tc2:
+        with st.container(border=True):
+            st.markdown("**✨ Moderno**")
+            st.markdown("Header destacado. Tech, startups, marketing.")
+    template = st.radio("Template:", ["Clásico","Moderno"], horizontal=True, label_visibility="collapsed")
+    st.markdown("---")
+
+    # ── Regenerate only ────────────────────────────────────────────────────
+    if st.session_state.get("regen_docx") and st.session_state.get("cv_data"):
+        st.session_state["regen_docx"] = False
+        show_results(st.session_state["cv_data"], template, font_family, font_size, max_pages)
+        st.stop()
+
+    # ── Main optimize button ───────────────────────────────────────────────
+    if credits_left == 0 and plan != "admin" and not st.session_state.get("user_api_key"):
+        st.button("🚀 Optimizar mi CV", use_container_width=True, disabled=True)
+        st.error("Sin créditos este mes. Contacta al admin para subir a Pro.")
+        st.stop()
+
+    if st.button("🚀 Optimizar mi CV", use_container_width=True):
+        # Resolve job text
+        final_job = job_description.strip()
+        if job_url.strip():
+            if not is_valid_url(job_url):
+                st.warning("⚠️ El link no parece válido.")
+            else:
+                with st.spinner("🔍 Leyendo la oferta desde el link..."):
+                    try:
+                        scraped = scrape_job_url(job_url.strip())
+                        if scraped:
+                            final_job = scraped
+                            st.success(f"✅ Oferta leída ({len(scraped):,} caracteres)")
+                        else:
+                            st.warning("No se pudo extraer texto del link.")
+                    except ValueError as e:
+                        st.warning(str(e))
+
+        if not final_job:
+            st.error("⚠️ Pega la oferta o ingresa un link válido.")
             st.stop()
 
-        st.info(f"📄 {total} PDF(s) a clasificar")
+        # Extract CV
+        cv_text = ""
+        if cv_file:
+            with st.spinner("📄 Extrayendo texto del archivo..."):
+                try:
+                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf") \
+                              else extract_docx(cv_file)
+                except Exception as e:
+                    st.error(f"Error al leer el archivo: {e}"); st.stop()
 
-        # Procesar
-        log = []
-        progress = st.progress(0)
-        status   = st.empty()
-        log_container = st.container()
+        if cv_text_manual.strip():
+            cv_text = cv_text_manual.strip() if not cv_text else cv_text + "\n" + cv_text_manual.strip()
 
-        for i, pdf_path in enumerate(pdfs):
-            nombre_orig = os.path.basename(pdf_path)
-            status.markdown(f"⏳ Procesando `{nombre_orig}` ({i+1}/{total})...")
+        if not cv_text:
+            st.error("⚠️ Sube un CV o pega el texto."); st.stop()
 
+        # Call Claude
+        with st.spinner("🤖 Analizando compatibilidad, keywords y preparando coaching..."):
             try:
-                imagenes = pdf_a_imagen_base64(pdf_path)
-                datos    = clasificar(client_ai, imagenes)
-
-                if datos is None:
-                    nuevo = f'REVISAR_{nombre_orig}'
-                    shutil.copy2(pdf_path, os.path.join(out_dir, nuevo))
-                    log.append({'original': nombre_orig, 'nuevo': nuevo, 'estado': 'FALLIDO'})
-                else:
-                    dias_doc, dias_calc, coincide, _ = validar_dias(datos)
-                    estado = 'OK_REVISAR_DIAS' if coincide is False else 'OK'
-                    nuevo_nombre = generar_nombre_estandarizado(datos)
-                    if estado == 'OK_REVISAR_DIAS':
-                        nuevo_nombre = nuevo_nombre.replace('.pdf', '_REVISAR_DIAS.pdf')
-
-                    # Evitar duplicados
-                    dest = os.path.join(out_dir, nuevo_nombre)
-                    c = 1
-                    while os.path.exists(dest):
-                        base = nuevo_nombre.replace('.pdf', '')
-                        dest = os.path.join(out_dir, f'{base}_{c}.pdf')
-                        c += 1
-                    shutil.copy2(pdf_path, dest)
-
-                    log.append({'original': nombre_orig, 'nuevo': os.path.basename(dest),
-                                'datos': datos, 'estado': estado,
-                                'dias_doc': dias_doc, 'dias_calc': dias_calc,
-                                'confianza': datos.get('confianza', 'ALTA'),
-                                'paginas': len(imagenes)})
-
+                cv_data = optimize_cv(cv_text, final_job, max_pages, font_size)
+                st.session_state["cv_data"] = cv_data
+                st.session_state["api_credits_error"] = False
+                # Consume credit and save history
+                consume_credit(user.id, credits_used)
+                save_history(
+                    user.id,
+                    cv_data.get("titulo_profesional", "Rol desconocido"),
+                    cv_data.get("score_match", 0),
+                    cv_data.get("ats_compatible", True)
+                )
+            except json.JSONDecodeError:
+                st.error("Error procesando respuesta. Intenta nuevamente."); st.stop()
+            except anthropic.AuthenticationError:
+                st.error("API Key inválida."); st.stop()
+            except anthropic.RateLimitError:
+                st.session_state["api_credits_error"] = True
+                st.error("⚠️ Servicio sin saldo. Ingresa tu API Key en el panel lateral.")
+                st.rerun()
             except Exception as e:
-                nuevo = f'REVISAR_{nombre_orig}'
-                shutil.copy2(pdf_path, os.path.join(out_dir, nuevo))
-                log.append({'original': nombre_orig, 'nuevo': nuevo,
-                            'estado': f'ERROR: {str(e)[:60]}'})
+                st.error(f"Error inesperado: {e}"); st.stop()
 
-            progress.progress((i + 1) / total)
-            time.sleep(1)
+        show_results(cv_data, template, font_family, font_size, max_pages)
 
-        status.markdown("✅ Procesamiento completado")
+    st.markdown("---")
+    st.caption("CV Optimizer ATS · Powered by Claude AI · Anthropic")
 
-        # Estadísticas
-        n_ok      = len([r for r in log if r['estado'] == 'OK'])
-        n_revisar = len([r for r in log if r['estado'] == 'OK_REVISAR_DIAS'])
-        n_fallo   = len([r for r in log if r['estado'] not in ('OK', 'OK_REVISAR_DIAS')])
+# ─── Router ───────────────────────────────────────────────────────────────────
+if not supabase:
+    st.error("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets de Streamlit.")
+    st.info("Mientras tanto, usa **app.py** (versión sin usuarios).")
+    st.stop()
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f'<div class="stat-box"><div class="stat-num stat-ok">{n_ok}</div><div class="stat-label">OK</div></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="stat-box"><div class="stat-num stat-warn">{n_revisar}</div><div class="stat-label">REVISAR DÍAS</div></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="stat-box"><div class="stat-num stat-err">{n_fallo}</div><div class="stat-label">FALLIDOS</div></div>', unsafe_allow_html=True)
+user = st.session_state.get("user")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+if not user:
+    show_auth_page()
+else:
+    profile = get_profile(user.id)
+    if not profile:
+        st.error("Error cargando perfil. Intenta cerrar sesión y volver a entrar.")
+        if st.button("Cerrar sesión"):
+            sign_out()
+    else:
+        show_main_app(user, profile)
 
-        # Resultados
-        st.markdown("### Resultados")
-        for r in log:
-            if r['estado'] == 'OK':               badge, cls = '✅ OK', 'badge-ok'
-            elif r['estado'] == 'OK_REVISAR_DIAS': badge, cls = '🟡 REVISAR DÍAS', 'badge-warn'
-            else:                                  badge, cls = '❌ FALLIDO', 'badge-err'
-            tipo_str      = r.get('datos', {}).get('tipo', '') if 'datos' in r else ''
-            confianza     = r.get('confianza', '')
-            paginas       = r.get('paginas', 1)
-            conf_color    = {'ALTA': '#4ade80', 'MEDIA': '#facc15', 'BAJA': '#f87171'}.get(confianza, '#888')
-            conf_html     = f'&nbsp;·&nbsp;<span style="color:{conf_color};font-size:0.75rem">⬤ {confianza}</span>' if confianza else ''
-            pag_html      = f'&nbsp;·&nbsp;<span style="color:#555;font-size:0.75rem">{paginas}p</span>' if paginas > 1 else ''
-            st.markdown(f"""
-            <div class="result-row">
-                <span class="{cls}">{badge}</span>
-                {'&nbsp;·&nbsp;<span style="color:#aaa">' + tipo_str + '</span>' if tipo_str else ''}
-                {conf_html}{pag_html}
-                <br>
-                <span style="color:#666">↳</span> {r.get('nuevo', r['original'])}
-            </div>
-            """, unsafe_allow_html=True)
 
-        # ZIP y descarga
-        zip_path = os.path.join(tmpdir, 'pdf_clasificados.zip')
-        with zipfile.ZipFile(zip_path, 'w') as zf:
-            for archivo in os.listdir(out_dir):
-                zf.write(os.path.join(out_dir, archivo), archivo)
-
-        with open(zip_path, 'rb') as f:
-            st.download_button(
-                label="📦 Descargar PDF clasificados (.zip)",
-                data=f.read(),
-                file_name="pdf_clasificados.zip",
-                mime="application/zip",
-                use_container_width=True,
-                type="primary"
-            )
+# Setup SQL está en setup.sql — ejecutar en Supabase SQL Editor antes de usar la app.
