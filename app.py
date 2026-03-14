@@ -217,18 +217,38 @@ TEMPLATES = {
     }
 }
 
+if "template_choice" not in st.session_state:
+    st.session_state["template_choice"] = list(TEMPLATES.keys())[0]
+
 t_cols = st.columns(4)
 for i, (name, info) in enumerate(TEMPLATES.items()):
+    is_sel = st.session_state["template_choice"] == name
+    border_col = "#1B6CA8" if is_sel else "#CCCCCC"
+    bg_col = "#E8F4FD" if is_sel else "#FAFAFA"
+    check = "✅ " if is_sel else ""
+    preview_html = info["preview"].replace("\n", "<br>")
     with t_cols[i]:
-        with st.container(border=True):
-            st.markdown(f"**{name}**")
-            st.caption(info["ideal"])
-            with st.expander("👁️ Vista previa"):
-                st.markdown(f'<div class="template-preview">{info["preview"]}</div>',
-                            unsafe_allow_html=True)
+        st.markdown(
+            f"""<div style="border:2px solid {border_col};border-radius:10px;
+                padding:0.8rem;background:{bg_col};min-height:260px;">
+            <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.2rem;">
+                {check}{name}</div>
+            <div style="font-size:0.75rem;color:#888;margin-bottom:0.5rem;">
+                {info["ideal"]}</div>
+            <div style="font-family:monospace;font-size:0.68rem;color:#555;
+                background:#F0F0F0;border-radius:4px;padding:0.4rem 0.5rem;
+                line-height:1.5;">{preview_html}</div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        if st.button(f"{'✅ Seleccionado' if is_sel else 'Seleccionar'}", key=f"tpl_{i}",
+                     use_container_width=True,
+                     type="primary" if is_sel else "secondary"):
+            st.session_state["template_choice"] = name
+            st.rerun()
 
-template = st.radio("Selecciona template:", list(TEMPLATES.keys()),
-                    horizontal=True, label_visibility="collapsed")
+template = st.session_state.get("template_choice", list(TEMPLATES.keys())[0])
 
 st.markdown("---")
 
