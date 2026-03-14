@@ -353,26 +353,38 @@ Responde ÚNICAMENTE con JSON válido, sin backticks ni texto adicional:
 }}"""
 
     client = anthropic.Anthropic(api_key=api_key)
-    for attempt in range(2):
-        msg = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=5000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text.strip()
-        if "```json" in raw:
-            raw = raw.split("```json")[1].split("```")[0].strip()
-        elif "```" in raw:
-            raw = raw.split("```")[1].split("```")[0].strip()
-        try:
-            result = json.loads(raw)
-            result["_was_truncated"] = was_truncated
-            return result
-        except json.JSONDecodeError:
-            if attempt == 0:
-                time.sleep(1)
-                continue
-            raise
+
+    def call_model(model_id: str) -> dict:
+        for attempt in range(2):
+            msg = client.messages.create(
+                model=model_id,
+                max_tokens=5000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw = msg.content[0].text.strip()
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0].strip()
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                raise
+
+    # Haiku por defecto (~$0.01). Opus solo si score < 60 (~$0.15)
+    result = call_model("claude-haiku-4-5-20251001")
+    result["_was_truncated"] = was_truncated
+    result["_model_used"] = "haiku"
+
+    if result.get("score_match", 100) < 60:
+        result = call_model("claude-opus-4-5-20251101")
+        result["_was_truncated"] = was_truncated
+        result["_model_used"] = "opus"
+
+    return result
 
 # ─── DOCX helpers ─────────────────────────────────────────────────────────────
 def add_border(doc, body_size, border_color):
