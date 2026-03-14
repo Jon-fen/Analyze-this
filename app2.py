@@ -43,6 +43,17 @@ div[data-testid="stDownloadButton"] button {
 .warn-truncate { background: #FFF8E1; border-left: 3px solid #FFA000;
                  padding: 0.5rem 0.8rem; border-radius: 4px;
                  font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+.tpl-card { border: 2px solid #DDD; border-radius: 10px; padding: 0.9rem 1rem;
+            cursor: pointer; transition: all 0.15s; background: #FAFAFA;
+            margin-bottom: 0.3rem; }
+.tpl-card:hover { border-color: #2E75B6; background: #F0F7FF; }
+.tpl-card.selected { border-color: #1B6CA8; background: #E8F4FD;
+                     box-shadow: 0 0 0 3px #BDD9F2; }
+.tpl-title { font-weight: 700; font-size: 1rem; margin-bottom: 0.2rem; }
+.tpl-ideal { font-size: 0.78rem; color: #888; margin-bottom: 0.4rem; }
+.tpl-preview { font-family: monospace; font-size: 0.72rem; color: #555;
+               background: #F5F5F5; border-radius: 4px; padding: 0.4rem 0.5rem;
+               white-space: pre; line-height: 1.45; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -539,6 +550,298 @@ def build_modern(cv, fn, fs):
             R(p.add_run(f"▸  {cert}"), fn, fs)
     buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
 
+# ─── Template definitions ────────────────────────────────────────────────────
+TEMPLATES = {
+    "Clásico": {
+        "icon": "📋",
+        "ideal": "Finanzas, legal, gobierno, roles senior",
+        "preview": (
+            "───────────────────────\n"
+            "      JUAN PÉREZ       \n"
+            " Gerente de Operaciones\n"
+            " email | tel | ciudad  \n"
+            "───────────────────────\n"
+            "RESUMEN PROFESIONAL    \n"
+            "EXPERIENCIA            \n"
+            "  Cargo · Empresa      \n"
+            "  • Logro medible      \n"
+            "EDUCACIÓN / HABILIDADES"
+        )
+    },
+    "Moderno": {
+        "icon": "✨",
+        "ideal": "Tech, startups, marketing digital",
+        "preview": (
+            "JUAN PÉREZ             \n"
+            "Gerente de Operaciones \n"
+            "✉ email  ✆ tel        \n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "◆  PERFIL PROFESIONAL  \n"
+            "◆  EXPERIENCIA         \n"
+            "   Cargo — Empresa     \n"
+            "   ▸ Logro con keyword \n"
+            "◆  HABILIDADES"
+        )
+    },
+    "Ejecutivo": {
+        "icon": "🏛️",
+        "ideal": "Dirección, C-level, consultoría senior",
+        "preview": (
+            "███████████████████████\n"
+            "  JUAN PÉREZ           \n"
+            "  Director General     \n"
+            "███████████████████████\n"
+            "PERFIL EJECUTIVO       \n"
+            "TRAYECTORIA            \n"
+            "  ■ Cargo | Empresa    \n"
+            "    › Logro estratégico\n"
+            "FORMACIÓN · COMPETENCIAS"
+        )
+    },
+    "Minimalista": {
+        "icon": "⬜",
+        "ideal": "Cualquier sector · Máxima compatibilidad ATS",
+        "preview": (
+            "Juan Pérez             \n"
+            "Gerente de Operaciones \n"
+            "email | tel | ciudad   \n"
+            "                       \n"
+            "RESUMEN                \n"
+            "EXPERIENCIA            \n"
+            "Cargo — Empresa        \n"
+            "- Logro cuantificado   \n"
+            "EDUCACIÓN · HABILIDADES"
+        )
+    },
+}
+
+from docx.oxml.ns import qn as _qn
+from docx.oxml import OxmlElement as _OxmlElement
+
+def _section_border(p, border_color):
+    pPr = p._p.get_or_add_pPr()
+    pBdr = _OxmlElement('w:pBdr')
+    pPr.append(pBdr)
+    bottom = _OxmlElement('w:bottom')
+    bottom.set(_qn('w:val'), 'single')
+    bottom.set(_qn('w:sz'), '6')
+    bottom.set(_qn('w:space'), '1')
+    bottom.set(_qn('w:color'), border_color)
+    pBdr.append(bottom)
+
+def _hdr(doc, title, color_rgb, fn, fs, border_color, prefix=""):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(fs)
+    p.paragraph_format.space_after = Pt(fs * 0.3)
+    run = p.add_run(f"{prefix}{title}")
+    run.bold = True; run.font.name = fn
+    run.font.size = Pt(fs + 1)
+    run.font.color.rgb = RGBColor(*color_rgb)
+    _section_border(p, border_color)
+
+def _R(run, fn, fs, bold=False, italic=False, color=None):
+    run.font.name = fn; run.font.size = Pt(float(fs))
+    run.bold = bold; run.italic = italic
+    if color: run.font.color.rgb = RGBColor(*color)
+    return run
+
+def _exp_block(doc, cv, fn, fs, cargo_color, periodo_color, bullet_prefix, indent_cargo, indent_bullet):
+    for exp in cv.get("experiencia", []):
+        p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(fs * 0.6)
+        p.paragraph_format.left_indent = Inches(indent_cargo)
+        _R(p.add_run(exp.get("cargo", "")), fn, fs, bold=True, color=cargo_color)
+        p2 = doc.add_paragraph(); p2.paragraph_format.left_indent = Inches(indent_cargo)
+        _R(p2.add_run(f"{exp.get('empresa','')}   |   {exp.get('periodo','')}"), fn, fs-1, italic=True, color=periodo_color)
+        for logro in exp.get("logros", []):
+            pb = doc.add_paragraph(); pb.paragraph_format.left_indent = Inches(indent_bullet)
+            pb.paragraph_format.space_after = Pt(2)
+            _R(pb.add_run(f"{bullet_prefix}{logro}"), fn, fs)
+
+def build_clasico(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument(); s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.0)
+    s.top_margin = Inches(0.8); s.bottom_margin = Inches(0.8)
+    DARK=(0x1A,0x1A,0x2E); BLUE=(0x2E,0x75,0xB6); GRAY=(0x66,0x66,0x66)
+    def hdr(t): _hdr(doc, t, BLUE, fn, fs, "2E75B6")
+    p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    _R(p.add_run(cv.get("nombre","")), fn, fs+9, bold=True, color=DARK)
+    p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    _R(p.add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=BLUE)
+    parts=[x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts:
+        p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        _R(p.add_run("  |  ".join(parts)), fn, fs-1, color=GRAY)
+    if cv.get("resumen_profesional"):
+        hdr("RESUMEN PROFESIONAL"); _R(doc.add_paragraph().add_run(cv["resumen_profesional"]), fn, fs)
+    if cv.get("experiencia"):
+        hdr("EXPERIENCIA PROFESIONAL")
+        _exp_block(doc, cv, fn, fs, (0,0,0), GRAY, "• ", 0, 0.2)
+    if cv.get("educacion"):
+        hdr("EDUCACIÓN")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.5)
+            _R(p.add_run(edu.get("titulo","")), fn, fs, bold=True)
+            _R(doc.add_paragraph().add_run(f"{edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1, italic=True, color=GRAY)
+            if edu.get("detalle"): _R(doc.add_paragraph().add_run(edu["detalle"]), fn, fs-1)
+    if cv.get("habilidades_tecnicas"):
+        hdr("HABILIDADES TÉCNICAS"); _R(doc.add_paragraph().add_run("  •  ".join(cv["habilidades_tecnicas"])), fn, fs)
+    if cv.get("habilidades_blandas"):
+        hdr("COMPETENCIAS"); _R(doc.add_paragraph().add_run("  •  ".join(cv["habilidades_blandas"])), fn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS"); _R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs=[c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("CERTIFICACIONES")
+        for cert in certs: _R(doc.add_paragraph().add_run(f"• {cert}"), fn, fs)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+def build_moderno(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument(); s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(0.75)
+    s.top_margin = Inches(0.6); s.bottom_margin = Inches(0.8)
+    NAVY=(0x1B,0x4F,0x72); TEAL=(0x17,0x8A,0xCA); GRAY=(0x77,0x77,0x77)
+    def hdr(t): _hdr(doc, t, NAVY, fn, fs, "17A8CA", prefix="◆  ")
+    _R(doc.add_paragraph().add_run(cv.get("nombre","").upper()), fn, fs+11, bold=True, color=NAVY)
+    _R(doc.add_paragraph().add_run(cv.get("titulo_profesional","")), fn, fs+2, bold=True, color=TEAL)
+    parts=[]
+    for icon,key in [("✉","email"),("✆","telefono"),("⌖","ubicacion"),("in","linkedin")]:
+        if cv.get(key): parts.append(f"{icon} {cv[key]}")
+    if parts: _R(doc.add_paragraph().add_run("   |   ".join(parts)), fn, fs-1, color=GRAY)
+    p_div=doc.add_paragraph(); p_div.paragraph_format.space_after=Pt(8)
+    pPr=p_div._p.get_or_add_pPr(); pBdr=_OxmlElement('w:pBdr'); pPr.append(pBdr)
+    btm=_OxmlElement('w:bottom')
+    for a,v in [('w:val','single'),('w:sz','16'),('w:space','1'),('w:color','1B4F72')]: btm.set(_qn(a),v)
+    pBdr.append(btm)
+    if cv.get("resumen_profesional"):
+        hdr("PERFIL PROFESIONAL")
+        p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+        _R(p.add_run(cv["resumen_profesional"]), fn, fs)
+    if cv.get("experiencia"):
+        hdr("EXPERIENCIA")
+        for exp in cv["experiencia"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.7); p.paragraph_format.left_indent=Inches(0.15)
+            _R(p.add_run(exp.get("cargo","")), fn, fs, bold=True, color=NAVY)
+            _R(p.add_run("  —  "), fn, fs); _R(p.add_run(exp.get("empresa","")), fn, fs)
+            p2=doc.add_paragraph(); p2.paragraph_format.left_indent=Inches(0.15)
+            _R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=TEAL)
+            for logro in exp.get("logros",[]):
+                pb=doc.add_paragraph(); pb.paragraph_format.left_indent=Inches(0.35); pb.paragraph_format.space_after=Pt(2)
+                _R(pb.add_run(f"▸  {logro}"), fn, fs)
+    if cv.get("educacion"):
+        hdr("EDUCACIÓN")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15); p.paragraph_format.space_before=Pt(fs*0.5)
+            _R(p.add_run(edu.get("titulo","")), fn, fs, bold=True, color=NAVY)
+            _R(p.add_run(f"   |   {edu.get('institucion','')}   |   {edu.get('periodo','')}"), fn, fs-1)
+            if edu.get("detalle"):
+                p2=doc.add_paragraph(); p2.paragraph_format.left_indent=Inches(0.15); _R(p2.add_run(edu["detalle"]), fn, fs-1)
+    if cv.get("habilidades_tecnicas") or cv.get("habilidades_blandas"):
+        hdr("HABILIDADES")
+        for label,key in [("Técnicas: ","habilidades_tecnicas"),("Competencias: ","habilidades_blandas")]:
+            if cv.get(key):
+                p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+                _R(p.add_run(label), fn, fs, bold=True); _R(p.add_run("  •  ".join(cv[key])), fn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS"); p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15)
+        _R(p.add_run("  |  ".join(cv["idiomas"])), fn, fs)
+    certs=[c for c in cv.get("certificaciones",[]) if c]
+    if certs:
+        hdr("CERTIFICACIONES")
+        for cert in certs:
+            p=doc.add_paragraph(); p.paragraph_format.left_indent=Inches(0.15); _R(p.add_run(f"▸  {cert}"), fn, fs)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+def build_ejecutivo(cv, fn, fs):
+    fs = float(fs)
+    sfn = "Georgia" if fn in ["Calibri","Arial","Trebuchet MS"] else fn
+    doc = DocxDocument(); s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.0)
+    s.top_margin = Inches(0.7); s.bottom_margin = Inches(0.8)
+    NAVY=(0x1B,0x2A,0x4A); GOLD=(0x8B,0x6C,0x1E); GRAY=(0x55,0x55,0x55)
+    def hdr(t): _hdr(doc, t, NAVY, sfn, fs, "1B2A4A")
+    p=doc.add_paragraph(); _R(p.add_run(cv.get("nombre","").upper()), sfn, fs+10, bold=True, color=NAVY)
+    p2=doc.add_paragraph(); _R(p2.add_run(cv.get("titulo_profesional","")), sfn, fs+1, italic=True, color=GOLD)
+    parts=[x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts: _R(doc.add_paragraph().add_run("  ·  ".join(parts)), fn, fs-1, color=GRAY)
+    p_div=doc.add_paragraph(); p_div.paragraph_format.space_after=Pt(6)
+    pPr=p_div._p.get_or_add_pPr(); pBdr=_OxmlElement('w:pBdr'); pPr.append(pBdr)
+    btm=_OxmlElement('w:bottom')
+    for a,v in [('w:val','single'),('w:sz','24'),('w:space','1'),('w:color','1B2A4A')]: btm.set(_qn(a),v)
+    pBdr.append(btm)
+    if cv.get("resumen_profesional"):
+        hdr("PERFIL EJECUTIVO"); _R(doc.add_paragraph().add_run(cv["resumen_profesional"]), sfn, fs, italic=True)
+    if cv.get("experiencia"):
+        hdr("TRAYECTORIA PROFESIONAL")
+        for exp in cv["experiencia"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.7)
+            _R(p.add_run(f"■  {exp.get('cargo','')}"), sfn, fs, bold=True, color=NAVY)
+            _R(p.add_run(f"  ·  {exp.get('empresa','')}"), sfn, fs)
+            p2=doc.add_paragraph(); p2.paragraph_format.left_indent=Inches(0.25)
+            _R(p2.add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=GRAY)
+            for logro in exp.get("logros",[]):
+                pb=doc.add_paragraph(); pb.paragraph_format.left_indent=Inches(0.35); pb.paragraph_format.space_after=Pt(2)
+                _R(pb.add_run(f"›  {logro}"), sfn, fs)
+    if cv.get("educacion"):
+        hdr("FORMACIÓN ACADÉMICA")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.5)
+            _R(p.add_run(edu.get("titulo","")), sfn, fs, bold=True, color=NAVY)
+            _R(p.add_run(f"  —  {edu.get('institucion','')}  |  {edu.get('periodo','')}"), sfn, fs-1, color=GRAY)
+    all_sk=cv.get("habilidades_tecnicas",[])+cv.get("habilidades_blandas",[])
+    if all_sk:
+        hdr("COMPETENCIAS"); _R(doc.add_paragraph().add_run("  ■  ".join(all_sk)), sfn, fs)
+    if cv.get("idiomas"):
+        hdr("IDIOMAS"); _R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), sfn, fs)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+def build_minimalista(cv, fn, fs):
+    fs = float(fs)
+    doc = DocxDocument(); s = doc.sections[0]
+    s.left_margin = s.right_margin = Inches(1.1)
+    s.top_margin = Inches(0.9); s.bottom_margin = Inches(0.9)
+    DARK=(0x22,0x22,0x22); MID=(0x44,0x44,0x44); LIGHT=(0x88,0x88,0x88)
+    def hdr(t):
+        p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*1.2); p.paragraph_format.space_after=Pt(fs*0.2)
+        run=p.add_run(t.upper()); run.bold=True; run.font.name=fn; run.font.size=Pt(fs); run.font.color.rgb=RGBColor(*DARK)
+        _section_border(p, "AAAAAA")
+    _R(doc.add_paragraph().add_run(cv.get("nombre","")), fn, fs+6, bold=True, color=DARK)
+    _R(doc.add_paragraph().add_run(cv.get("titulo_profesional","")), fn, fs+0.5, color=MID)
+    parts=[x for x in [cv.get("email"),cv.get("telefono"),cv.get("ubicacion"),cv.get("linkedin")] if x]
+    if parts: _R(doc.add_paragraph().add_run("  |  ".join(parts)), fn, fs-1, color=LIGHT)
+    if cv.get("resumen_profesional"):
+        hdr("Resumen"); _R(doc.add_paragraph().add_run(cv["resumen_profesional"]), fn, fs, color=MID)
+    if cv.get("experiencia"):
+        hdr("Experiencia")
+        for exp in cv["experiencia"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.5)
+            _R(p.add_run(exp.get("cargo","")), fn, fs, bold=True, color=DARK)
+            _R(p.add_run(f"  —  {exp.get('empresa','')}"), fn, fs, color=MID)
+            _R(doc.add_paragraph().add_run(exp.get("periodo","")), fn, fs-1, italic=True, color=LIGHT)
+            for logro in exp.get("logros",[]):
+                pb=doc.add_paragraph(); pb.paragraph_format.left_indent=Inches(0.2); pb.paragraph_format.space_after=Pt(2)
+                _R(pb.add_run(f"- {logro}"), fn, fs, color=MID)
+    if cv.get("educacion"):
+        hdr("Educación")
+        for edu in cv["educacion"]:
+            p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(fs*0.4)
+            _R(p.add_run(edu.get("titulo","")), fn, fs, bold=True, color=DARK)
+            _R(p.add_run(f"  —  {edu.get('institucion','')}  ({edu.get('periodo','')}"), fn, fs-1, color=MID)
+    all_sk=cv.get("habilidades_tecnicas",[])+cv.get("habilidades_blandas",[])
+    if all_sk:
+        hdr("Habilidades"); _R(doc.add_paragraph().add_run("  /  ".join(all_sk)), fn, fs, color=MID)
+    if cv.get("idiomas"):
+        hdr("Idiomas"); _R(doc.add_paragraph().add_run("  |  ".join(cv["idiomas"])), fn, fs, color=MID)
+    buf=io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+BUILDERS = {
+    "Clásico":    build_clasico,
+    "Moderno":    build_moderno,
+    "Ejecutivo":  build_ejecutivo,
+    "Minimalista": build_minimalista,
+}
+
 # ─── Results display ──────────────────────────────────────────────────────────
 def show_results(cv_data, template, fn, fs, max_pages):
     st.markdown("---")
@@ -585,19 +888,25 @@ def show_results(cv_data, template, fn, fs, max_pages):
         for tip in coaching:
             st.markdown(f'<div class="coach-card"><strong>{tip.get("categoria","")}</strong><br>{tip.get("tip","")}</div>', unsafe_allow_html=True)
     st.markdown("---")
-    with st.spinner(f"Generando DOCX — {template} · {fn} {fs}pt · {max_pages}p..."):
-        try:
-            buf = build_classic(cv_data,fn,fs) if template=="Clásico" else build_modern(cv_data,fn,fs)
-        except Exception as e:
-            st.error(f"Error generando el documento: {e}"); return
+    st.subheader("⬇️ Descarga tu CV")
+    st.markdown("**El análisis está listo — descarga en cualquier template sin coste adicional:**")
     nombre = cv_data.get("nombre","cv").replace(" ","_")
+    dl1, dl2, dl3, dl4 = st.columns(4)
+    for col, (tname, builder) in zip([dl1,dl2,dl3,dl4], BUILDERS.items()):
+        with col:
+            try:
+                buf = builder(cv_data, fn, float(fs))
+                st.download_button(
+                    label=f"⬇️ {tname}",
+                    data=buf,
+                    file_name=f"CV_ATS_{nombre}_{tname}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Error {tname}: {e}")
     st.success("✅ ¡Tu CV optimizado está listo!")
-    st.download_button(
-        label=f"⬇️  Descargar CV — {template} · {fn} {fs}pt  (.docx)",
-        data=buf,
-        file_name=f"CV_ATS_{nombre}_{template}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s)")
 
 # ─── Admin panel ──────────────────────────────────────────────────────────────
 def show_admin_panel():
@@ -712,18 +1021,43 @@ def show_main_app(user, profile):
         job_description = st.text_area("O pega el texto aquí", height=215,
             placeholder="Pega aquí el texto de la oferta...")
 
-    # ── Template ───────────────────────────────────────────────────────────
-    st.subheader("🎨 Template del CV")
-    tc1,tc2=st.columns(2)
-    with tc1:
-        with st.container(border=True):
-            st.markdown("**📋 Clásico**")
-            st.markdown("Formato tradicional. Finanzas, legal, gobierno, roles senior.")
-    with tc2:
-        with st.container(border=True):
-            st.markdown("**✨ Moderno**")
-            st.markdown("Header destacado. Tech, startups, marketing.")
-    template = st.radio("Template:", ["Clásico","Moderno"], horizontal=True, label_visibility="collapsed")
+    # ── Template — clickable cards ────────────────────────────────────────
+    st.subheader("🎨 Elige tu Template")
+    st.markdown("Haz clic en la tarjeta para seleccionarla. **Después de optimizar, descargas los 4 sin costo extra.**")
+
+    if "template_choice" not in st.session_state:
+        st.session_state["template_choice"] = "Clásico"
+
+    tc1, tc2, tc3, tc4 = st.columns(4)
+    for col, tname in zip([tc1, tc2, tc3, tc4], TEMPLATES.keys()):
+        info = TEMPLATES[tname]
+        is_sel = st.session_state["template_choice"] == tname
+        border_col = "#1B6CA8" if is_sel else "#CCCCCC"
+        bg_col = "#E8F4FD" if is_sel else "#FAFAFA"
+        check = "✅ " if is_sel else ""
+        preview_html = info["preview"].replace("\n", "<br>")
+        with col:
+            st.markdown(
+                f"""<div style="border:2px solid {border_col};border-radius:10px;
+                    padding:0.8rem;background:{bg_col};min-height:260px;">
+                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.2rem;">
+                    {check}{info["icon"]} {tname}</div>
+                <div style="font-size:0.75rem;color:#888;margin-bottom:0.5rem;">
+                    {info["ideal"]}</div>
+                <div style="font-family:monospace;font-size:0.68rem;color:#555;
+                    background:#F0F0F0;border-radius:4px;padding:0.4rem 0.5rem;
+                    line-height:1.5;">{preview_html}</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+            if st.button(f"{'✅ Seleccionado' if is_sel else 'Seleccionar'}", key=f"tpl_{tname}",
+                         use_container_width=True,
+                         type="primary" if is_sel else "secondary"):
+                st.session_state["template_choice"] = tname
+                st.rerun()
+
+    template = st.session_state["template_choice"]
     st.markdown("---")
 
     # ── Regenerate only ────────────────────────────────────────────────────
