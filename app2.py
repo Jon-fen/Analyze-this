@@ -603,6 +603,10 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
                     continue
                 raise
 
+    # TODO future: add style variation pass to reduce AI-detectable patterns
+    # (vary sentence length, avoid Claude's typical connectors, add burstiness)
+    # Not urgent until market starts flagging AI-written CVs in Latam.
+
     # Paso 1: Haiku hace el análisis inicial (costo ~$0.01-0.02)
     result = call_model("claude-haiku-4-5-20251001")
     result["_was_truncated"] = was_truncated
@@ -1290,67 +1294,63 @@ def show_main_app(user, profile):
     credits_used = profile.get("credits_used_this_month", 0)
     monthly_limit = PLAN_CREDITS.get(plan, 5)
 
-    # ── Sidebar ────────────────────────────────────────────────────────────
+    # ── Sidebar — clean & minimal ──────────────────────────────────────────
+    # Smart defaults — what works best for ATS
+    max_pages   = 1
+    font_family = "Calibri"
+    font_size   = 10
+
     with st.sidebar:
-        st.header("👤 Mi cuenta")
-
-        # Credit badge
+        # Account badge — minimal
         badge_class = "credit-badge"
-        if credits_left == 0:
-            badge_class = "credit-badge credit-zero"
-        elif credits_left <= 2:
-            badge_class = "credit-badge credit-low"
-
-        credit_display = "∞" if plan == "admin" else f"{credits_left}"
-        credit_label = "∞ análisis" if plan == "admin" else f"{credits_left} análisis restante{'s' if credits_left != 1 else ''}"
+        if credits_left == 0:   badge_class = "credit-badge credit-zero"
+        elif credits_left <= 2: badge_class = "credit-badge credit-low"
+        credit_label = "∞ análisis" if plan == "admin" else f"{credits_left} análisis restantes"
         st.markdown(f'<span class="{badge_class}">{plan.upper()} · {credit_label}</span>', unsafe_allow_html=True)
-
         if plan != "admin":
-            st.progress(min(credits_used / monthly_limit, 1.0))
-            st.caption(f"{credits_used} / {monthly_limit} análisis usados este mes")
-
+            st.progress(min(credits_used / monthly_limit, 1.0), text=f"{credits_used}/{monthly_limit} este mes")
         if credits_left == 0 and plan != "admin":
-            st.warning("Sin análisis este mes. Contacta al admin para subir a Pro.")
-
-        # Fallback API key if service has no credits
+            st.markdown("""<div style="background:#2A1010;border-left:3px solid #F44336;
+                padding:0.5rem 0.7rem;border-radius:4px;font-size:0.82rem;color:#EF9A9A;margin:0.5rem 0">
+                Sin análisis este mes.<br><a href="https://ko-fi.com/analyzethis"
+                style="color:#6BAED6">Apoya en Ko-fi para subir a Pro →</a></div>""",
+                unsafe_allow_html=True)
         if st.session_state.get("api_credits_error"):
-            st.warning("Servicio sin saldo. Usa tu propia API Key:")
+            st.warning("Servicio sin saldo.")
             user_key = st.text_input("🔑 Tu API Key", type="password")
             if user_key:
                 st.session_state["user_api_key"] = user_key
 
-        st.markdown("---")
-        st.markdown("**📐 Formato del CV**")
-        max_pages = st.slider("Páginas máximas", 1, 3, 2)
-        font_family = st.selectbox("Tipografía",
-            ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0,
-            help="Calibri y Arial son las más amigables con ATS.")
-        font_size = st.select_slider("Tamaño de letra", options=[9,10,10.5,11,12], value=10)
-
+        # Regenerate without re-calling Claude
         if st.session_state.get("cv_data"):
             st.markdown("---")
-            st.info("✅ Análisis guardado. Cambia formato y regenera sin re-llamar a Claude.")
-            if st.button("🔄 Regenerar DOCX", use_container_width=True):
+            st.caption("✅ Análisis guardado — puedes cambiar el formato sin gastar un análisis.")
+            if st.button("🔄 Cambiar formato / template", use_container_width=True):
                 st.session_state["regen_docx"] = True
 
+        # Advanced format settings — hidden by default
         st.markdown("---")
-        st.markdown("**¿Cómo funciona?**")
-        st.markdown("1. Sube tu CV (PDF o DOCX)")
-        st.markdown("2. Pega o linkea la oferta")
-        st.markdown("3. Configura formato y template")
-        st.markdown("4. Descarga tu CV optimizado")
+        with st.expander("⚙️ Ajustes avanzados"):
+            st.caption("Configuración por defecto optimizada para ATS: 1 página, Calibri 10pt.")
+            max_pages   = st.slider("Páginas máximas", 1, 3, 1)
+            font_family = st.selectbox("Tipografía",
+                ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0,
+                help="Calibri y Arial son las más amigables con ATS.")
+            font_size   = st.select_slider("Tamaño de letra",
+                options=[9, 10, 10.5, 11, 12], value=10)
+
         st.markdown("---")
         if st.button("🚪 Cerrar sesión", use_container_width=True):
             sign_out()
-        st.caption("Powered by Claude AI · Anthropic")
+        st.caption("CV Optimizer ATS · Powered by Claude AI")
 
     # ── Header ─────────────────────────────────────────────────────────────
     nombre_usuario = profile.get('email','').split('@')[0]
     st.markdown(f"""
-<div style="padding:0.5rem 0 1rem 0">
-  <h1 style="font-size:1.7rem;font-weight:800;margin:0">🎯 CV Optimizer ATS</h1>
-  <p style="color:#666;margin:0.2rem 0 0 0">
-    Hola, <strong>{nombre_usuario}</strong> 👋 — Sube tu CV, pega la oferta, descarga listo.
+<div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
+  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS</h1>
+  <p style="color:#888;margin:0.2rem 0 0 0;font-size:0.88rem">
+    Hola, <strong style="color:#aaa">{nombre_usuario}</strong> — sube tu CV, pega la oferta, descarga listo.
   </p>
 </div>""", unsafe_allow_html=True)
 
@@ -1426,9 +1426,9 @@ def show_main_app(user, profile):
         job_description = st.text_area("O pega el texto aquí", height=215,
             placeholder="Pega aquí el texto de la oferta...")
 
-    # ── Template — clickable cards ────────────────────────────────────────
-    st.subheader("🎨 Elige tu Template")
-    st.markdown("Haz clic en la tarjeta para seleccionarla. **Después de optimizar, descargas los 4 sin costo extra.**")
+    # ── Template — collapsed by default, all 4 available post-optimize ─────
+    with st.expander("🎨 Preferencia de template (opcional — obtienes los 4 al optimizar)", expanded=False):
+      st.markdown("Selecciona tu preferencia. **Recibirás los 4 templates en la descarga final sin costo extra.**")
 
     if "template_choice" not in st.session_state:
         st.session_state["template_choice"] = "Clásico"
@@ -1462,7 +1462,7 @@ def show_main_app(user, profile):
                 st.session_state["template_choice"] = tname
                 st.rerun()
 
-    template = st.session_state["template_choice"]
+    template = st.session_state.get("template_choice", "Clásico")
     st.markdown("---")
 
     # ── Regenerate only ────────────────────────────────────────────────────
