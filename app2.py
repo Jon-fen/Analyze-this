@@ -15,6 +15,7 @@ import requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime, timezone
+from streamlit_oauth import OAuth2Component
 
 MAX_CV_CHARS = 40_000   # ~15 páginas densas
 MAX_CV_CHARS_CAREER = 80_000  # Sin límite para cambio de carrera
@@ -65,9 +66,11 @@ def get_secret(key: str, default=None):
     except (KeyError, FileNotFoundError):
         return default
 
-ANTHROPIC_KEY = get_secret("ANTHROPIC_API_KEY")
-SUPABASE_URL  = get_secret("SUPABASE_URL")
-SUPABASE_KEY  = get_secret("SUPABASE_KEY")
+ANTHROPIC_KEY     = get_secret("ANTHROPIC_API_KEY")
+SUPABASE_URL      = get_secret("SUPABASE_URL")
+SUPABASE_KEY      = get_secret("SUPABASE_KEY")
+GOOGLE_CLIENT_ID  = get_secret("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = get_secret("GOOGLE_CLIENT_SECRET", "")
 
 PLAN_CREDITS = {"free": 10, "pro": 50, "admin": 999999}
 
@@ -201,9 +204,6 @@ def get_global_stats() -> dict:
 
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
-    # Handle OAuth callback if redirected from Google
-    handle_oauth_callback()
-
     st.markdown("""
 <div style="text-align:center;padding:1.5rem 0 0.5rem 0">
   <div style="font-size:2.5rem;margin-bottom:0.3rem">🎯</div>
@@ -215,31 +215,30 @@ def show_auth_page():
 </div>
 """, unsafe_allow_html=True)
 
-    # ── Google OAuth button ────────────────────────────────────────────────
-    google_url = get_google_auth_url()
-    if google_url:
-        st.markdown(f"""
-<div style="text-align:center;margin:1rem 0">
-  <a href="{google_url}" target="_self"
-     style="display:inline-flex;align-items:center;gap:0.6rem;
-            background:#fff;color:#333;border:1.5px solid #DDD;
-            padding:0.65rem 1.5rem;border-radius:8px;
-            text-decoration:none;font-weight:600;font-size:0.95rem;
-            box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-    <svg width="18" height="18" viewBox="0 0 48 48">
-      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-      <path fill="#FBBC05" d="M10.5 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.1.7-4.6L2.3 13.3A23.8 23.8 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8-6z"/>
-      <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-3.7-13.5-9l-8 6.1C6.6 42.6 14.6 48 24 48z"/>
-    </svg>
-    Continuar con Google
-  </a>
-</div>
-<div style="text-align:center;color:#999;font-size:0.8rem;margin-bottom:0.5rem">
-  — o usa tu email —
-</div>""", unsafe_allow_html=True)
-    else:
-        st.info("Google OAuth no configurado aún.")
+    # ── Google OAuth button via streamlit-oauth ───────────────────────────
+    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        oauth2 = OAuth2Component(
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            authorize_endpoint=GOOGLE_AUTH_URL,
+            token_endpoint=GOOGLE_TOKEN_URL,
+        )
+        result = oauth2.authorize_button(
+            name="Continuar con Google",
+            icon="https://www.google.com/favicon.ico",
+            redirect_uri="https://analyze-this-v2.streamlit.app",
+            scope=GOOGLE_SCOPE,
+            key="google_oauth",
+            extras_params={"prompt": "select_account"},
+            use_container_width=True,
+        )
+        if result and result.get("token"):
+            with st.spinner("Iniciando sesión con Google..."):
+                handle_google_token(result["token"])
+
+        st.markdown("""<div style="text-align:center;color:#999;
+            font-size:0.8rem;margin:0.3rem 0 0.5rem 0">— o usa tu email —</div>""",
+            unsafe_allow_html=True)
 
     st.markdown("---")
     tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "📝 Crear cuenta"])
@@ -331,49 +330,44 @@ def show_auth_page():
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.warning("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets.")
 
-# ─── Google OAuth ─────────────────────────────────────────────────────────────
-def get_google_auth_url() -> str:
-    """Returns the Google OAuth URL from Supabase."""
-    try:
-        res = supabase.auth.sign_in_with_oauth({
-            "provider": "google",
-            "options": {
-                "redirect_to": "https://analyze-this-v2.streamlit.app",
-                "query_params": {"access_type": "offline", "prompt": "consent"}
-            }
-        })
-        return res.url if res.url else ""
-    except Exception as e:
-        return ""
+# ─── Google OAuth via streamlit-oauth ────────────────────────────────────────
+GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_SCOPE     = "openid email profile"
 
-def handle_oauth_callback():
-    """Handles OAuth token from URL params after Google redirect."""
+def handle_google_token(token: dict):
+    """Takes Google token, signs in to Supabase with the id_token."""
     try:
-        params = st.query_params
-        access_token = params.get("access_token", "")
-        refresh_token = params.get("refresh_token", "")
-        if access_token:
-            session = supabase.auth.set_session(access_token, refresh_token)
-            if session and session.user:
-                st.session_state["user"] = session.user
-                st.session_state["session"] = session
-                # Create profile if first time
-                existing = get_profile(session.user.id)
+        id_token = token.get("id_token", "")
+        if not id_token:
+            st.error("No se pudo obtener el token de Google.")
+            return
+        # Sign in to Supabase with Google id_token
+        res = supabase.auth.sign_in_with_id_token({
+            "provider": "google",
+            "token": id_token,
+        })
+        if res and res.user:
+            st.session_state["user"] = res.user
+            st.session_state["session"] = res.session
+            # Create profile if first time
+            try:
+                existing = get_profile(res.user.id)
                 if not existing:
-                    try:
-                        supabase.table("profiles").insert({
-                            "id": session.user.id,
-                            "email": session.user.email,
-                            "plan": "free",
-                            "credits_used_this_month": 0,
-                            "credits_reset_at": datetime.now(timezone.utc).isoformat()
-                        }).execute()
-                    except Exception:
-                        pass  # Trigger may have created it already
-                st.query_params.clear()
-                st.rerun()
-    except Exception:
-        pass
+                    supabase.table("profiles").insert({
+                        "id": res.user.id,
+                        "email": res.user.email,
+                        "plan": "free",
+                        "credits_used_this_month": 0,
+                        "credits_reset_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+            except Exception:
+                pass
+            st.rerun()
+        else:
+            st.error("Error al iniciar sesión con Google.")
+    except Exception as e:
+        st.error(f"Error de autenticación: {e}")
 
 # ─── Extraction helpers ────────────────────────────────────────────────────────
 def is_valid_url(url: str) -> bool:
