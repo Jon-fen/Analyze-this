@@ -65,6 +65,16 @@ st.markdown("""
   /* ── Hide Streamlit branding ── */
   #MainMenu, footer, header { visibility: hidden; }
   [data-testid="stToolbar"] { display: none; }
+
+  /* ── Prevent flash/fadeoff on widget interaction ── */
+  .stApp { transition: none !important; }
+  [data-testid="stAppViewContainer"] { transition: none !important; }
+
+  /* ── Pulse animation ── */
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
 </style>
 """, unsafe_allow_html=True)
 
@@ -616,9 +626,14 @@ def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_c
 
 {"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica."}
 
-REGLA ABSOLUTA: NO INVENTAR NADA. Cada dato, skill, herramienta, cargo y logro DEBE aparecer
-textualmente en el CV original. Si el CV no menciona SAP, no pongas SAP. Si no dice "especialista en X",
-no lo pongas. Inventar experiencias o skills es un error crítico inaceptable.
+REGLA ABSOLUTA — CERO INVENCIÓN:
+- Cada skill, herramienta, cargo, certificación y logro DEBE existir en el CV original
+- Si el CV no menciona SAP → NO pongas SAP
+- Si el CV no dice "Ingeniero de Materiales" → NO pongas ese título
+- Si no hay experiencia en abastecimiento → NO pongas "especialista en abastecimiento"
+- El título profesional debe ser el cargo real del CV más reciente, adaptado a la oferta — nunca inventado
+- Ante la duda entre incluir algo o no → NO lo incluyas
+Inventar datos es el error más grave posible. Es preferible un CV más corto que uno con datos falsos.
 
 INSTRUCCIONES:
 1. Solo reorganiza y reescribe lo que ya existe — NUNCA agregues información nueva
@@ -1186,14 +1201,17 @@ Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para r
             st.subheader(labels[tool])
             st.markdown(result_text)
 
-            # Offer download as txt
+            # Display inline + copy option
+            st.text_area("Resultado (copia con Ctrl+A, Ctrl+C):", result_text,
+                         height=300, key=f"result_text_{tool}")
             st.download_button(
-                label=f"⬇️ Descargar {labels[tool]} (.txt)",
+                label=f"⬇️ Descargar como .txt",
                 data=result_text.encode("utf-8"),
                 file_name=f"{tool}_{nombre.replace(' ','_')}.txt",
                 mime="text/plain",
                 use_container_width=False
             )
+            st.caption("💡 Copia el texto y pégalo en Word para dar formato final.")
         except Exception as e:
             st.error(f"Error generando {labels[tool]}: {e}")
 
@@ -1241,10 +1259,13 @@ def show_results(cv_data, fn, fs, max_pages):
     coaching=cv_data.get("coaching",[])
     if coaching:
         st.markdown("---")
-        st.subheader("🎯 Tu Plan de Acción")
-        st.markdown("Recomendaciones personalizadas para **esta** postulación:")
-        for tip in coaching:
-            st.markdown(f'<div class="coach-card"><strong>{tip.get("categoria","")}</strong><br>{tip.get("tip","")}</div>', unsafe_allow_html=True)
+        st.markdown("**🎯 Tu Plan de Acción**")
+        st.caption("Recomendaciones para esta postulación — expande cada una:")
+        for i, tip in enumerate(coaching):
+            cat = tip.get("categoria","")
+            tip_txt = tip.get("tip","")
+            with st.expander(cat, expanded=(i==0)):
+                st.markdown(tip_txt)
     st.markdown("---")
     st.subheader("⬇️ Descarga tu CV optimizado")
     st.markdown("Elige el template que prefieras — todos usan el mismo análisis, solo cambia el diseño:")
@@ -1647,6 +1668,13 @@ def show_main_app(user, profile):
         <a href="mailto:contacto@analyze-this.app" style="color:#1B6CA8">Escríbenos para subir a Pro →</a>
         </div>""", unsafe_allow_html=True)
         st.stop()
+
+    # Scroll hint if results already exist
+    if st.session_state.get("cv_data"):
+        st.markdown("""<div style="text-align:center;color:#666;font-size:0.8rem;
+            padding:0.3rem;animation:pulse 2s infinite">
+            ↓ Resultados disponibles abajo
+            </div>""", unsafe_allow_html=True)
 
     if st.button("🚀 Optimizar mi CV", use_container_width=True):
         # Resolve job text — cache scraped result to avoid multiple calls
