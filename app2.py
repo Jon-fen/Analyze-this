@@ -1336,34 +1336,89 @@ def show_admin_panel():
         a1, a2 = st.columns(2)
         a1.metric("📄 CVs generados (total)", f"{stats['cvs']:,}")
         a2.metric("👥 Usuarios registrados", f"{stats['users']:,}")
+
+        # ── User management ────────────────────────────────────────────────
         st.markdown("---")
-        st.markdown("**Usuarios recientes:**")
+        st.markdown("**👤 Gestión de usuarios:**")
         try:
-            res = supabase.table("profiles").select("email,plan,credits_used_this_month").order("created_at", desc=True).limit(20).execute()
+            res = supabase.table("profiles").select("id,email,plan,credits_used_this_month,activation_code").order("created_at", desc=True).limit(20).execute()
             if res.data:
                 for u in res.data:
-                    plan = u.get("plan","free")
-                    used = u.get("credits_used_this_month",0)
+                    uid   = u.get("id")
+                    email = u.get("email","")
+                    plan  = u.get("plan","free")
+                    used  = u.get("credits_used_this_month", 0)
                     limit = PLAN_CREDITS.get(plan, 5)
-                    st.markdown(f"- **{u.get('email','')}** · {plan} · {used}/{limit if plan != 'admin' else '∞'} análisis usados")
+                    code  = u.get("activation_code","") or ""
+                    limit_display = "∞" if plan == "admin" else str(limit)
+
+                    with st.container():
+                        uc1, uc2, uc3, uc4 = st.columns([3, 2, 1, 1])
+                        with uc1:
+                            st.markdown(f"**{email}**")
+                            st.caption(f"{used}/{limit_display} análisis · {f'código: {code}' if code else 'sin código'}")
+                        with uc2:
+                            new_plan = st.selectbox("Plan", ["free","pro_code","pro","admin"],
+                                index=["free","pro_code","pro","admin"].index(plan) if plan in ["free","pro_code","pro","admin"] else 0,
+                                key=f"plan_{uid}", label_visibility="collapsed")
+                        with uc3:
+                            if st.button("Cambiar", key=f"change_plan_{uid}"):
+                                try:
+                                    supabase.table("profiles").update({"plan": new_plan}).eq("id", uid).execute()
+                                    st.success("✅"); st.rerun()
+                                except: st.error("Error")
+                        with uc4:
+                            if st.button("↺ Reset", key=f"reset_{uid}", help="Resetear análisis usados este mes"):
+                                try:
+                                    supabase.table("profiles").update({"credits_used_this_month": 0}).eq("id", uid).execute()
+                                    st.success("✅"); st.rerun()
+                                except: st.error("Error")
             else:
                 st.info("No hay usuarios todavía.")
         except Exception as e:
-            st.error(f"Error cargando usuarios: {e}")
+            st.error(f"Error: {e}")
 
+        # ── Activation codes ───────────────────────────────────────────────
         st.markdown("---")
         st.markdown("**🎟️ Códigos de activación:**")
         codes = get_all_codes()
         if codes:
             for c in codes:
-                uses = c.get("uses_count", 0)
-                max_u = c.get("max_uses") or "∞"
-                active = "✅" if c.get("active") else "❌"
-                desc = c.get("description","")
+                cid   = c.get("id")
+                uses  = c.get("uses_count", 0)
+                max_u = c.get("max_uses")
+                active = c.get("active", True)
+                desc  = c.get("description","")
                 grants = c.get("grants_plan","pro_code")
-                st.markdown(f"- {active} **`{c.get('code')}`** · {desc} · {uses}/{max_u} usos · plan: {grants}")
+                max_display = str(max_u) if max_u else "∞"
+
+                cc1, cc2, cc3, cc4 = st.columns([2, 2, 1, 1])
+                with cc1:
+                    st.markdown(f"{'✅' if active else '❌'} **`{c.get('code')}`**")
+                    st.caption(f"{desc} · {uses}/{max_display} usos · {grants}")
+                with cc2:
+                    new_max = st.number_input("Máx usos", min_value=0,
+                        value=max_u or 0, key=f"max_{cid}",
+                        label_visibility="collapsed",
+                        help="0 = ilimitado")
+                with cc3:
+                    if st.button("Guardar", key=f"save_code_{cid}"):
+                        try:
+                            supabase.table("activation_codes").update({
+                                "max_uses": new_max if new_max > 0 else None
+                            }).eq("id", cid).execute()
+                            st.success("✅"); st.rerun()
+                        except: st.error("Error")
+                with cc4:
+                    toggle_label = "Desactivar" if active else "Activar"
+                    if st.button(toggle_label, key=f"toggle_{cid}"):
+                        try:
+                            supabase.table("activation_codes").update({"active": not active}).eq("id", cid).execute()
+                            st.rerun()
+                        except: st.error("Error")
         else:
             st.info("No hay códigos aún.")
+
         st.markdown("**Crear nuevo código:**")
         nc1, nc2 = st.columns(2)
         with nc1:
