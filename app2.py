@@ -5,6 +5,13 @@
 import streamlit as st
 import anthropic
 import pdfplumber
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors as rl_colors
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.platypus import Image as RLImage
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from docx import Document as DocxDocument
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -461,11 +468,19 @@ def show_auth_page():
                 with st.spinner("Creando cuenta..."):
                     ok, msg = sign_up(email2, password2)
                 if ok:
+                    stage_val = career_stage if career_stage != "— Elige una opción —" else None
+                    found_val = how_found if how_found != "— Elige una opción —" else None
                     if activation_code.strip():
                         import time; time.sleep(1.5)
                         try:
                             new_user = supabase.auth.sign_in_with_password({"email": email2, "password": password2})
                             if new_user and new_user.user:
+                                # Save onboarding
+                                try:
+                                    supabase.table("profiles").update({
+                                        "career_stage": stage_val, "how_found": found_val
+                                    }).eq("id", new_user.user.id).execute()
+                                except Exception: pass
                                 code_ok, code_msg = validate_and_use_code(new_user.user.id, activation_code)
                                 supabase.auth.sign_out()
                                 if code_ok:
@@ -478,6 +493,16 @@ def show_auth_page():
                         except Exception:
                             st.success(msg)
                     else:
+                        # No code — save onboarding briefly
+                        try:
+                            import time as _t; _t.sleep(1)
+                            temp_u = supabase.auth.sign_in_with_password({"email": email2, "password": password2})
+                            if temp_u and temp_u.user:
+                                supabase.table("profiles").update({
+                                    "career_stage": stage_val, "how_found": found_val
+                                }).eq("id", temp_u.user.id).execute()
+                                supabase.auth.sign_out()
+                        except Exception: pass
                         st.success(msg)
                     st.info("👆 Inicia sesión en la pestaña **🔑 Iniciar sesión**.")
                 else:
@@ -1137,6 +1162,85 @@ BUILDERS = {
     "Minimalista": build_minimalista,
 }
 
+# ─── Branded PDF builder ──────────────────────────────────────────────────────
+LOGO_PATH = "logo.png"
+_RL_NAVY  = rl_colors.HexColor("#1B4F8A")
+_RL_GOLD  = rl_colors.HexColor("#C8973A")
+_RL_LIGHT = rl_colors.HexColor("#8B96A0")
+_RL_DARK  = rl_colors.HexColor("#0F1117")
+
+def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> io.BytesIO:
+    import os
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+        leftMargin=2*cm, rightMargin=2*cm,
+        topMargin=1.5*cm, bottomMargin=2*cm)
+
+    s_hdr  = ParagraphStyle("s_hdr",  fontName="Helvetica-Bold", fontSize=9,
+                             textColor=_RL_LIGHT)
+    s_title= ParagraphStyle("s_title",fontName="Helvetica-Bold", fontSize=18,
+                             textColor=_RL_NAVY, spaceBefore=6, spaceAfter=4)
+    s_body = ParagraphStyle("s_body", fontName="Helvetica", fontSize=10.5,
+                             textColor=_RL_DARK, leading=16, spaceAfter=6)
+    s_bold = ParagraphStyle("s_bold", fontName="Helvetica-Bold", fontSize=10.5,
+                             textColor=_RL_DARK, leading=16, spaceAfter=6)
+    s_foot = ParagraphStyle("s_foot", fontName="Helvetica", fontSize=8,
+                             textColor=_RL_LIGHT, alignment=TA_CENTER)
+
+    story = []
+
+    # Header row: logo | app name | person name
+    hdr_left = Paragraph("<b>Analyze-This</b> · CV Optimizer ATS", s_hdr)
+    hdr_right= Paragraph(person_name or "", s_hdr)
+    if os.path.exists(LOGO_PATH):
+        logo = RLImage(LOGO_PATH, width=1.6*cm, height=1.06*cm)
+        hdr_data = [[logo, hdr_left, hdr_right]]
+        hdr_cols = [2*cm, 9*cm, 6*cm]
+    else:
+        hdr_data = [[hdr_left, hdr_right]]
+        hdr_cols = [11*cm, 6*cm]
+    hdr_tbl = Table(hdr_data, colWidths=hdr_cols)
+    hdr_tbl.setStyle(TableStyle([
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("ALIGN",  (-1,0),(-1,0), "RIGHT"),
+    ]))
+    story.append(hdr_tbl)
+    story.append(HRFlowable(width="100%", thickness=1.5, color=_RL_NAVY, spaceAfter=10))
+    story.append(Paragraph(title, s_title))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_GOLD, spaceAfter=14))
+
+    # Body — parse markdown-lite: **bold**, numbered lists, bullet lines
+    import re
+    for line in content_text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            story.append(Spacer(1, 5))
+            continue
+        # Escape XML chars
+        safe = stripped.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        # Bold lines
+        if re.match(r"^\*\*.*\*\*$", stripped):
+            story.append(Paragraph(safe.replace("**",""), s_bold))
+        # Numbered items
+        elif re.match(r"^\d+\.", stripped):
+            story.append(Paragraph(f"&nbsp;&nbsp;{safe}", s_body))
+        # Bullet items
+        elif stripped.startswith("- ") or stripped.startswith("• "):
+            story.append(Paragraph(f"• {safe[2:]}", s_body))
+        else:
+            # Inline **bold**
+            safe = re.sub(r"\*\*(.+?)\*\*", r"<b></b>", safe)
+            story.append(Paragraph(safe, s_body))
+
+    story.append(Spacer(1, 20))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_LIGHT, spaceAfter=6))
+    story.append(Paragraph(
+        "Generado por <b>Analyze-This · CV Optimizer ATS</b> · analyze-this-v2.streamlit.app",
+        s_foot))
+    doc.build(story)
+    buf.seek(0)
+    return buf
+
 # ─── Next-step tools (carta, entrevista, linkedin) ───────────────────────────
 def _run_next_tool(tool: str, nombre: str, titulo: str, resumen: str, skills: str, fn: str, fs):
     api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
@@ -1201,17 +1305,35 @@ Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para r
             st.subheader(labels[tool])
             st.markdown(result_text)
 
-            # Display inline + copy option
-            st.text_area("Resultado (copia con Ctrl+A, Ctrl+C):", result_text,
-                         height=300, key=f"result_text_{tool}")
-            st.download_button(
-                label=f"⬇️ Descargar como .txt",
-                data=result_text.encode("utf-8"),
-                file_name=f"{tool}_{nombre.replace(' ','_')}.txt",
-                mime="text/plain",
-                use_container_width=False
-            )
-            st.caption("💡 Copia el texto y pégalo en Word para dar formato final.")
+            # Show inline + PDF download
+            st.markdown(result_text)
+            title_map = {
+                "carta": "Carta de Presentación",
+                "entrevista": "Preparación de Entrevista",
+                "linkedin": "Optimización LinkedIn"
+            }
+            try:
+                pdf_buf = build_branded_pdf(
+                    title_map.get(tool, tool.capitalize()),
+                    result_text,
+                    nombre
+                )
+                st.download_button(
+                    label="⬇️ Descargar PDF",
+                    data=pdf_buf,
+                    file_name=f"{tool}_{nombre.replace(' ','_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=False
+                )
+            except Exception as pdf_err:
+                st.caption(f"PDF no disponible: {pdf_err}")
+                st.download_button(
+                    label="⬇️ Descargar .txt",
+                    data=result_text.encode("utf-8"),
+                    file_name=f"{tool}_{nombre.replace(' ','_')}.txt",
+                    mime="text/plain",
+                    use_container_width=False
+                )
         except Exception as e:
             st.error(f"Error generando {labels[tool]}: {e}")
 
@@ -1375,6 +1497,27 @@ def show_admin_panel():
         a2.metric("👥 Usuarios registrados", f"{stats['users']:,}")
 
         # ── User management ────────────────────────────────────────────────
+        # Onboarding stats
+        try:
+            stages_res = supabase.table("profiles").select("career_stage,how_found").execute()
+            if stages_res.data:
+                from collections import Counter
+                stages = Counter(u.get("career_stage") for u in stages_res.data if u.get("career_stage"))
+                found  = Counter(u.get("how_found")    for u in stages_res.data if u.get("how_found"))
+                if stages or found:
+                    st.markdown("---")
+                    st.markdown("**📊 Perfil de usuarios:**")
+                    sc1, sc2 = st.columns(2)
+                    with sc1:
+                        st.caption("Etapa de carrera")
+                        for k,v in stages.most_common():
+                            st.markdown(f"- {k}: **{v}**")
+                    with sc2:
+                        st.caption("¿Cómo nos encontraron?")
+                        for k,v in found.most_common():
+                            st.markdown(f"- {k}: **{v}**")
+        except Exception: pass
+
         st.markdown("---")
         st.markdown("**👤 Gestión de usuarios:**")
         try:
