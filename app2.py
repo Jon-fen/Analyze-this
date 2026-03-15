@@ -387,7 +387,7 @@ def show_auth_page():
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8rem;margin-bottom:1.2rem">
   <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
     <div style="font-size:1.4rem">📄</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">10 análisis gratis</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">5 análisis gratis</div>
     <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">al mes, sin tarjeta</div>
   </div>
   <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
