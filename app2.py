@@ -226,10 +226,10 @@ def show_auth_page():
         result = oauth2.authorize_button(
             name="Continuar con Google",
             icon="https://www.google.com/favicon.ico",
-            redirect_uri="https://analyze-this-v2.streamlit.app",
+            redirect_uri="https://analyze-this-v2.streamlit.app/",
             scope=GOOGLE_SCOPE,
             key="google_oauth",
-            extras_params={"prompt": "select_account"},
+            extras_params={"prompt": "select_account", "access_type": "offline"},
             use_container_width=True,
         )
         if result and result.get("token"):
@@ -288,6 +288,7 @@ def show_auth_page():
                     ok, msg = sign_up(email2, password2)
                 if ok:
                     st.success(msg)
+                    st.info("👆 Ahora inicia sesión en la pestaña **🔑 Iniciar sesión** con tu email y contraseña.")
                 else:
                     st.error(msg)
 
@@ -1269,14 +1270,15 @@ def show_main_app(user, profile):
         with col:
             st.markdown(f"""
 <div style="border:2px solid {border_col};border-radius:12px;
-    padding:1rem;background:{bg_col};min-height:230px;
+    padding:1rem;background:{bg_col};height:260px;
+    display:flex;flex-direction:column;
     transition:all 0.2s;">
   <div style="font-size:1.6rem;margin-bottom:0.3rem;">{info["icon"]}</div>
   <div style="font-weight:700;font-size:1rem;color:{accent};
       margin-bottom:0.2rem;">{check}{tname}</div>
-  <div style="font-size:0.72rem;color:#777;margin-bottom:0.6rem;
+  <div style="font-size:0.72rem;color:#777;margin-bottom:0.5rem;
       font-style:italic;">{info["ideal"]}</div>
-  <div style="font-size:0.8rem;color:#444;line-height:1.5;">
+  <div style="font-size:0.78rem;color:#444;line-height:1.5;flex:1;overflow:hidden;">
       {info["desc"]}</div>
 </div>""", unsafe_allow_html=True)
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
