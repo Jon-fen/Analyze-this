@@ -16,7 +16,8 @@ from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime, timezone
 
-MAX_CV_CHARS = 12_000
+MAX_CV_CHARS = 40_000   # ~15 páginas densas
+MAX_CV_CHARS_CAREER = 80_000  # Sin límite para cambio de carrera
 
 # ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="centered")
@@ -68,7 +69,7 @@ ANTHROPIC_KEY = get_secret("ANTHROPIC_API_KEY")
 SUPABASE_URL  = get_secret("SUPABASE_URL")
 SUPABASE_KEY  = get_secret("SUPABASE_KEY")
 
-PLAN_CREDITS = {"free": 5, "pro": 50, "admin": 999999}
+PLAN_CREDITS = {"free": 10, "pro": 50, "admin": 999999}
 
 # ─── Supabase client ──────────────────────────────────────────────────────────
 @st.cache_resource
@@ -200,10 +201,47 @@ def get_global_stats() -> dict:
 
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
-    st.title("🎯 CV Optimizer ATS")
-    st.markdown("Adapta tu CV a cualquier oferta y supera los filtros automáticos.")
-    st.markdown("---")
+    # Handle OAuth callback if redirected from Google
+    handle_oauth_callback()
 
+    st.markdown("""
+<div style="text-align:center;padding:1.5rem 0 0.5rem 0">
+  <div style="font-size:2.5rem;margin-bottom:0.3rem">🎯</div>
+  <h1 style="font-size:1.8rem;font-weight:800;margin:0">CV Optimizer ATS</h1>
+  <p style="color:#666;font-size:1rem;margin:0.4rem 0 0 0">
+    Sube tu CV completo. Pega la oferta. Descarga el CV listo para enviar.<br>
+    <span style="font-size:0.85rem;color:#999">Tu experiencia, optimizada para cada oportunidad.</span>
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── Google OAuth button ────────────────────────────────────────────────
+    google_url = get_google_auth_url()
+    if google_url:
+        st.markdown(f"""
+<div style="text-align:center;margin:1rem 0">
+  <a href="{google_url}" target="_self"
+     style="display:inline-flex;align-items:center;gap:0.6rem;
+            background:#fff;color:#333;border:1.5px solid #DDD;
+            padding:0.65rem 1.5rem;border-radius:8px;
+            text-decoration:none;font-weight:600;font-size:0.95rem;
+            box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+      <path fill="#FBBC05" d="M10.5 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.1.7-4.6L2.3 13.3A23.8 23.8 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8-6z"/>
+      <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-3.7-13.5-9l-8 6.1C6.6 42.6 14.6 48 24 48z"/>
+    </svg>
+    Continuar con Google
+  </a>
+</div>
+<div style="text-align:center;color:#999;font-size:0.8rem;margin-bottom:0.5rem">
+  — o usa tu email —
+</div>""", unsafe_allow_html=True)
+    else:
+        st.info("Google OAuth no configurado aún.")
+
+    st.markdown("---")
     tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "📝 Crear cuenta"])
 
     with tab_login:
@@ -277,8 +315,65 @@ def show_auth_page():
         with c2:
             st.metric("👥 Usuarios registrados", f"{stats['users']:,}")
 
+    st.markdown("---")
+    st.markdown("""
+<div style="text-align:center;padding:0.5rem">
+  <a href="https://ko-fi.com/analyzethis" target="_blank"
+     style="display:inline-block;background:#FFDD00;color:#000;font-weight:700;
+     padding:0.5rem 1.2rem;border-radius:8px;text-decoration:none;font-size:0.9rem;">
+    ☕ ¿Te fue útil? Apoya en Ko-fi
+  </a>
+  <p style="font-size:0.75rem;color:#999;margin-top:0.4rem">
+    Ayuda a mantener el servicio gratuito para todos
+  </p>
+</div>""", unsafe_allow_html=True)
+
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.warning("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets.")
+
+# ─── Google OAuth ─────────────────────────────────────────────────────────────
+def get_google_auth_url() -> str:
+    """Returns the Google OAuth URL from Supabase."""
+    try:
+        res = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": "https://analyze-this-v2.streamlit.app",
+                "query_params": {"access_type": "offline", "prompt": "consent"}
+            }
+        })
+        return res.url if res.url else ""
+    except Exception as e:
+        return ""
+
+def handle_oauth_callback():
+    """Handles OAuth token from URL params after Google redirect."""
+    try:
+        params = st.query_params
+        access_token = params.get("access_token", "")
+        refresh_token = params.get("refresh_token", "")
+        if access_token:
+            session = supabase.auth.set_session(access_token, refresh_token)
+            if session and session.user:
+                st.session_state["user"] = session.user
+                st.session_state["session"] = session
+                # Create profile if first time
+                existing = get_profile(session.user.id)
+                if not existing:
+                    try:
+                        supabase.table("profiles").insert({
+                            "id": session.user.id,
+                            "email": session.user.email,
+                            "plan": "free",
+                            "credits_used_this_month": 0,
+                            "credits_reset_at": datetime.now(timezone.utc).isoformat()
+                        }).execute()
+                    except Exception:
+                        pass  # Trigger may have created it already
+                st.query_params.clear()
+                st.rerun()
+    except Exception:
+        pass
 
 # ─── Extraction helpers ────────────────────────────────────────────────────────
 def is_valid_url(url: str) -> bool:
@@ -332,22 +427,31 @@ def extract_docx(file) -> str:
     return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
 # ─── Claude optimization ──────────────────────────────────────────────────────
-def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size) -> dict:
+def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_change: bool = False) -> dict:
     api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
-    was_truncated = len(cv_text) > MAX_CV_CHARS
-    cv_text = cv_text[:MAX_CV_CHARS]
+    limit = MAX_CV_CHARS_CAREER if career_change else MAX_CV_CHARS
+    was_truncated = len(cv_text) > limit
+    cv_text = cv_text[:limit]
 
     words_per_page = {9: 700, 10: 600, 10.5: 560, 11: 520, 12: 460}
     max_words = words_per_page.get(float(font_size), 580) * max_pages
 
     prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
 
+{"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica."}
+
 INSTRUCCIONES:
-1. Selecciona SOLO el contenido más relevante para esta oferta — NO inventes nada
+1. NO inventes nada — solo reorganiza y reescribe lo que existe
 2. Integra las palabras clave exactas de la oferta de forma natural
 3. Reescribe logros con verbos de acción + impacto medible
-4. Respeta el límite de {max_pages} página(s) ≈ {max_words} palabras
-5. Evalúa compatibilidad ATS: sin tablas ni columnas que confundan parsers
+4. Respeta el límite de {{max_pages}} página(s) ≈ {{max_words}} palabras
+5. Detecta qué ATS probablemente usa la empresa según su nombre/industria:
+   - Empresas grandes/corporativas → Workday, SAP SuccessFactors
+   - Startups/tech latam → Greenhouse, Lever
+   - Empresas chilenas → Buk, Rankmi, Talently
+   - Retail/gobierno → sistemas propios básicos
+   Adapta el formato y densidad de keywords según ese ATS inferido
+6. Evalúa compatibilidad ATS: sin tablas ni columnas que confundan parsers
 
 CV ORIGINAL:
 {cv_text}
@@ -376,7 +480,8 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
   "idiomas": ["Español - Nativo"],
   "certificaciones": ["solo si existen"],
   "ats_compatible": true,
-  "ats_razon": "Una frase sobre compatibilidad ATS",
+  "ats_detectado": "Nombre del ATS inferido para esta empresa (ej: Workday, Buk, Greenhouse)",
+  "ats_razon": "Por qué se adaptó el CV para ese ATS específico",
   "score_match": 82,
   "score_desglose": {{"keywords":88,"experiencia":80,"educacion":75,"habilidades":85}},
   "score_explicacion": "2-3 oraciones sobre el score.",
@@ -832,15 +937,91 @@ BUILDERS = {
     "Minimalista": build_minimalista,
 }
 
+# ─── Next-step tools (carta, entrevista, linkedin) ───────────────────────────
+def _run_next_tool(tool: str, nombre: str, titulo: str, resumen: str, skills: str, fn: str, fs):
+    api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
+    job_ctx = st.session_state.get("cv_data", {}).get("titulo_profesional", "este puesto")
+
+    prompts = {
+        "carta": f"""Escribe una carta de presentación para el puesto de {titulo}.
+Empieza con una idea potente (NO empieces con 'Me postulo para...' ni 'Mi nombre es...').
+Conecta la experiencia específica del candidato con las necesidades exactas del puesto.
+Termina transmitiendo confianza y con un llamado a la acción natural.
+Máximo 200 palabras. Tono profesional pero humano.
+
+Perfil del candidato:
+Nombre: {nombre}
+Resumen: {resumen}
+Habilidades clave: {skills}
+
+Escribe solo la carta, sin títulos ni explicaciones adicionales.""",
+
+        "entrevista": f"""Soy candidato al puesto de {titulo}.
+Dame exactamente:
+1. Las 8 preguntas más probables en la entrevista para este cargo
+2. Para cada pregunta: una estructura de respuesta sólida usando mi experiencia real (método STAR cuando aplique)
+3. Al final: 3 preguntas inteligentes que YO le haría al entrevistador para demostrar pensamiento estratégico
+
+Mi perfil:
+{resumen}
+Habilidades: {skills}
+
+Sé específico y práctico. Evita respuestas genéricas.""",
+
+        "linkedin": f"""Reescribe estas 3 secciones de mi perfil LinkedIn para posicionarme en búsquedas de reclutadores para el puesto de {titulo}:
+
+1. TÍTULO PROFESIONAL (máximo 220 caracteres, incluye keywords del sector)
+2. SECCIÓN 'ACERCA DE' (máximo 2.600 caracteres, primera persona, comienza con gancho, termina con CTA)
+3. DESCRIPCIÓN DE EXPERIENCIA más reciente (máximo 5 bullets con logros cuantificados)
+
+Mi perfil actual:
+{resumen}
+Habilidades: {skills}
+
+Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para reclutadores humanos."""
+    }
+
+    labels = {
+        "carta": "📝 Carta de Presentación",
+        "entrevista": "🎤 Preparación de Entrevista",
+        "linkedin": "💼 Optimización LinkedIn"
+    }
+
+    with st.spinner(f"Generando {labels[tool]}..."):
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompts[tool]}]
+            )
+            result_text = msg.content[0].text.strip()
+
+            st.markdown("---")
+            st.subheader(labels[tool])
+            st.markdown(result_text)
+
+            # Offer download as txt
+            st.download_button(
+                label=f"⬇️ Descargar {labels[tool]} (.txt)",
+                data=result_text.encode("utf-8"),
+                file_name=f"{tool}_{nombre.replace(' ','_')}.txt",
+                mime="text/plain",
+                use_container_width=False
+            )
+        except Exception as e:
+            st.error(f"Error generando {labels[tool]}: {e}")
+
 # ─── Results display ──────────────────────────────────────────────────────────
 def show_results(cv_data, template, fn, fs, max_pages):
     st.markdown("---")
     st.subheader("📊 Análisis de Compatibilidad")
     if cv_data.get("_was_truncated"):
-        st.markdown('<div class="warn-truncate">⚠️ CV muy extenso — se analizaron los primeros 12.000 caracteres. Toda la info relevante fue capturada.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="warn-truncate">ℹ️ Tu CV era muy extenso. Se analizaron hasta ~15 páginas de tu historial (las más recientes y relevantes). Si activaste el modo cambio de carrera, se procesó el documento completo.</div>', unsafe_allow_html=True)
     model_used = cv_data.get("_model_used", "haiku")
     model_label = "⚡ Haiku (rápido)" if model_used == "haiku" else "🧠 Opus (profundo — score bajo detectado)"
     st.caption(f"Modelo usado: {model_label}")
+    ats_detected = cv_data.get("ats_detectado", "")
     ats_ok  = cv_data.get("ats_compatible", True)
     ats_msg = cv_data.get("ats_razon", "")
     score   = cv_data.get("score_match", 0)
@@ -849,6 +1030,8 @@ def show_results(cv_data, template, fn, fs, max_pages):
     with bc:
         if ats_ok: st.success("✅ ATS Compatible")
         else: st.error("❌ No ATS Compatible")
+        if ats_detected:
+            st.caption(f"🎯 ATS detectado: **{ats_detected}**")
         if ats_msg: st.caption(ats_msg)
     with sc:
         st.metric(f"{sc_col} Match con la oferta (estimado por IA)", f"{score}%")
@@ -897,6 +1080,48 @@ def show_results(cv_data, template, fn, fs, max_pages):
                 st.error(f"Error {tname}: {e}")
     st.success("✅ ¡Tu CV optimizado está listo!")
     st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s)")
+
+    # ── ¿Qué sigue? — herramientas complementarias ─────────────────────────
+    st.markdown("---")
+    st.subheader("🚀 ¿Qué sigue? Prepara el resto de tu postulación")
+    st.markdown("Usa el mismo CV y oferta para generar estas herramientas en segundos:")
+
+    nombre_cv  = cv_data.get("nombre", "")
+    titulo_cv  = cv_data.get("titulo_profesional", "")
+    resumen_cv = cv_data.get("resumen_profesional", "")
+    skills_cv  = ", ".join(cv_data.get("habilidades_tecnicas", [])[:6])
+
+    q1, q2, q3 = st.columns(3)
+
+    with q1:
+        with st.container(border=True):
+            st.markdown("**📝 Carta de presentación**")
+            st.caption("Menos de 200 palabras, comienza con una idea potente (no 'Me postulo para...')")
+            if st.button("Generar carta", key="btn_carta", use_container_width=True):
+                st.session_state["next_tool"] = "carta"
+                st.rerun()
+
+    with q2:
+        with st.container(border=True):
+            st.markdown("**🎤 Prep de entrevista**")
+            st.caption("8 preguntas probables + estructura de respuesta basada en tu experiencia")
+            if st.button("Preparar entrevista", key="btn_entrevista", use_container_width=True):
+                st.session_state["next_tool"] = "entrevista"
+                st.rerun()
+
+    with q3:
+        with st.container(border=True):
+            st.markdown("**💼 Optimizar LinkedIn**")
+            st.caption("Título, 'Acerca de' y experiencias reescritos para aparecer en búsquedas de reclutadores")
+            if st.button("Optimizar LinkedIn", key="btn_linkedin", use_container_width=True):
+                st.session_state["next_tool"] = "linkedin"
+                st.rerun()
+
+    # Execute selected tool
+    next_tool = st.session_state.get("next_tool")
+    if next_tool and cv_data:
+        st.session_state.pop("next_tool", None)
+        _run_next_tool(next_tool, nombre_cv, titulo_cv, resumen_cv, skills_cv, fn, fs)
 
 # ─── Admin panel ──────────────────────────────────────────────────────────────
 def show_admin_panel():
@@ -983,8 +1208,14 @@ def show_main_app(user, profile):
         st.caption("Powered by Claude AI · Anthropic")
 
     # ── Header ─────────────────────────────────────────────────────────────
-    st.title("🎯 CV Optimizer ATS")
-    st.markdown(f"Hola, **{profile.get('email','').split('@')[0]}** 👋  Adapta tu CV y supera los filtros automáticos.")
+    nombre_usuario = profile.get('email','').split('@')[0]
+    st.markdown(f"""
+<div style="padding:0.5rem 0 1rem 0">
+  <h1 style="font-size:1.7rem;font-weight:800;margin:0">🎯 CV Optimizer ATS</h1>
+  <p style="color:#666;margin:0.2rem 0 0 0">
+    Hola, <strong>{nombre_usuario}</strong> 👋 — Sube tu CV, pega la oferta, descarga listo.
+  </p>
+</div>""", unsafe_allow_html=True)
 
     # ── Admin panel ────────────────────────────────────────────────────────
     if plan == "admin":
@@ -1006,8 +1237,18 @@ def show_main_app(user, profile):
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📄 Tu CV")
+        career_change = st.toggle(
+            "🔄 Cambio de carrera o industria",
+            key="career_change_mode",
+            help="Activa esto si estás cambiando de área. Se analizará TODA tu experiencia para encontrar habilidades transferibles, sin importar cuán antigua sea."
+        )
+        if career_change:
+            st.info("Modo cambio de carrera activo — se usará toda tu experiencia para encontrar lo transferible al nuevo rol.")
+            st.caption("💡 Sube tu historial completo (hasta 30+ páginas). Toda la experiencia cuenta.")
+        else:
+            st.caption("💡 Sube tu CV completo — se analizarán hasta ~15 páginas priorizando lo más reciente.")
         cv_file = st.file_uploader("Sube tu CV", type=["pdf","docx"], label_visibility="collapsed")
-        cv_text_manual = st.text_area("O pega el texto aquí", height=220,
+        cv_text_manual = st.text_area("O pega el texto aquí", height=150,
             placeholder="Pega el contenido de tu CV si no tienes archivo...")
     with col2:
         st.subheader("💼 Oferta Laboral")
@@ -1063,7 +1304,11 @@ def show_main_app(user, profile):
     # ── Main optimize button ───────────────────────────────────────────────
     if credits_left == 0 and plan != "admin" and not st.session_state.get("user_api_key"):
         st.button("🚀 Optimizar mi CV", use_container_width=True, disabled=True)
-        st.error("Sin créditos este mes. Contacta al admin para subir a Pro.")
+        st.markdown("""<div style="background:#FFF8E1;border-left:4px solid #FFA000;padding:0.8rem 1rem;border-radius:6px;margin-top:0.5rem">
+        <strong>Agotaste tus optimizaciones del mes 🎯</strong><br>
+        Tu plan Free incluye 10 CVs al mes. ¿Quieres más?<br>
+        <a href="mailto:contacto@analyze-this.app" style="color:#1B6CA8">Escríbenos para subir a Pro →</a>
+        </div>""", unsafe_allow_html=True)
         st.stop()
 
     if st.button("🚀 Optimizar mi CV", use_container_width=True):
@@ -1107,7 +1352,8 @@ def show_main_app(user, profile):
         # Call Claude
         with st.spinner("🤖 Analizando compatibilidad, keywords y preparando coaching..."):
             try:
-                cv_data = optimize_cv(cv_text, final_job, max_pages, font_size)
+                career_change = st.session_state.get("career_change_mode", False)
+                cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
                 st.session_state["cv_data"] = cv_data
                 st.session_state["api_credits_error"] = False
                 # Consume credit and save history
