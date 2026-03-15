@@ -25,97 +25,42 @@ st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="cent
 
 st.markdown("""
 <style>
-  /* ── Force light mode with landing palette ── */
-  :root, [data-theme="dark"], [data-theme="light"] {
-    --background-color: #F7F4EF !important;
-    --secondary-background-color: #EDE9E1 !important;
-    --text-color: #0F1117 !important;
-  }
-  .stApp { background-color: #F7F4EF !important; }
-  section[data-testid="stSidebar"] {
-    background-color: #EDE9E1 !important;
-    border-right: 1px solid rgba(0,0,0,0.08) !important;
-  }
-  section[data-testid="stSidebar"] * { color: #0F1117 !important; }
+  /* ── Layout ── */
+  .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 820px; }
 
-  /* ── Main content ── */
-  .block-container {
-    padding-top: 2rem; padding-bottom: 2rem;
-    max-width: 820px;
-  }
-
-  /* ── Inputs ── */
-  .stTextInput input, .stTextArea textarea, .stSelectbox select {
-    background: #FFFFFF !important;
-    border: 1px solid rgba(0,0,0,0.12) !important;
-    color: #0F1117 !important;
-    border-radius: 8px !important;
-  }
-
-  /* ── Primary buttons ── */
-  .stButton > button[kind="primary"], div[data-testid="stDownloadButton"] button {
-    background-color: #1B4F8A !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    padding: 0.55rem 1.2rem !important;
-  }
-  .stButton > button[kind="primary"]:hover { background-color: #2E75B6 !important; }
-
-  /* ── Secondary buttons ── */
-  .stButton > button[kind="secondary"] {
-    background: white !important;
-    border: 1.5px solid #CCC !important;
-    color: #0F1117 !important;
-    border-radius: 8px !important;
-  }
-
-  /* ── Download button full width ── */
+  /* ── Download button ── */
   div[data-testid="stDownloadButton"] button {
-    font-size: 0.95rem !important;
-    padding: 0.6rem 1.5rem !important;
-    width: 100% !important;
-    border-radius: 8px !important;
-  }
+    background-color: #1B6CA8; color: white;
+    font-size: 1rem; padding: 0.6rem 1.5rem;
+    border-radius: 6px; width: 100%; }
 
-  /* ── Cards & callouts ── */
-  .coach-card {
-    background: #EBF3FB; border-left: 4px solid #1B4F8A;
-    padding: 0.75rem 1rem; border-radius: 6px;
-    margin-bottom: 0.5rem; font-size: 0.95rem; color: #0F1117;
-  }
-  .score-explain {
-    background: #F0EDE8; border-radius: 8px;
-    padding: 0.75rem 1rem; font-size: 0.9rem;
-    color: #555; margin-top: 0.5rem;
-  }
-  .warn-truncate {
-    background: #FFF8E1; border-left: 3px solid #C8973A;
-    padding: 0.5rem 0.8rem; border-radius: 4px;
-    font-size: 0.85rem; color: #555; margin-bottom: 0.5rem;
-  }
+  /* ── Coaching cards ── */
+  .coach-card { background: #1E2A3A; border-left: 4px solid #2E75B6;
+                padding: 0.75rem 1rem; border-radius: 4px;
+                margin-bottom: 0.5rem; font-size: 0.95rem; color: #E8EEF4; }
+  .score-explain { background: #1A1F2B; border-radius: 8px;
+                   padding: 0.75rem 1rem; font-size: 0.9rem;
+                   color: #BCC8D4; margin-top: 0.5rem; }
+  .warn-truncate { background: #2A2310; border-left: 3px solid #C8973A;
+                   padding: 0.5rem 0.8rem; border-radius: 4px;
+                   font-size: 0.85rem; color: #C8B88A; margin-bottom: 0.5rem; }
 
   /* ── Credit badge ── */
-  .credit-badge {
-    background: #EBF3FB; border: 1px solid #1B4F8A;
-    border-radius: 20px; padding: 0.2rem 0.8rem;
-    font-size: 0.85rem; font-weight: 600; color: #1B4F8A;
-    display: inline-block;
-  }
-  .credit-low  { background: #FFF3E0; border-color: #FF9800; color: #E65100; }
-  .credit-zero { background: #FFEBEE; border-color: #F44336; color: #B71C1C; }
+  .credit-badge { background: #1A2E4A; border: 1px solid #2E75B6;
+                  border-radius: 20px; padding: 0.2rem 0.8rem;
+                  font-size: 0.85rem; font-weight: 600; color: #6BAED6;
+                  display: inline-block; }
+  .credit-low  { background: #2A1A00; border-color: #FF9800; color: #FFB74D; }
+  .credit-zero { background: #2A1010; border-color: #F44336; color: #EF9A9A; }
 
-  /* ── Tabs ── */
-  .stTabs [data-baseweb="tab-list"] { background: transparent !important; }
-  .stTabs [data-baseweb="tab"] { color: #666 !important; }
-  .stTabs [aria-selected="true"] { color: #1B4F8A !important; border-bottom-color: #1B4F8A !important; }
+  /* ── Value prop cards on auth page ── */
+  .value-card { background: #1E2A3A; border-radius: 10px; padding: 0.9rem;
+                text-align: center; }
 
   /* ── Metrics ── */
   [data-testid="metric-container"] {
-    background: #FFFFFF; border: 1px solid rgba(0,0,0,0.08);
-    border-radius: 10px; padding: 0.8rem 1rem;
-  }
+    background: #1A1F2B; border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 0.8rem 1rem; }
 
   /* ── Hide Streamlit branding ── */
   #MainMenu, footer, header { visibility: hidden; }
@@ -307,20 +252,20 @@ def show_auth_page():
     # Value prop — why register
     st.markdown("""
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8rem;margin-bottom:1.2rem">
-  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
     <div style="font-size:1.4rem">📄</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">10 análisis gratis</div>
-    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">por mes, sin tarjeta</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">10 análisis gratis</div>
+    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">al mes, sin tarjeta</div>
   </div>
-  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
     <div style="font-size:1.4rem">🎨</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">4 templates</div>
-    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">listos para enviar</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">4 templates</div>
+    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">listos para enviar</div>
   </div>
-  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
     <div style="font-size:1.4rem">🎤</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">Coaching incluido</div>
-    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">carta + entrevista</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Coaching incluido</div>
+    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">carta + entrevista</div>
   </div>
 </div>
 """, unsafe_allow_html=True)

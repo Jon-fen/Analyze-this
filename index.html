@@ -219,8 +219,10 @@
     .plans {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.5rem; margin-top: 3.5rem; align-items: start;
+      gap: 1.5rem; margin-top: 3.5rem; align-items: stretch;
     }
+    .plan { display: flex; flex-direction: column; }
+    .plan-features { flex: 1; }
     .plan {
       border: 1.5px solid rgba(0,0,0,0.1);
       border-radius: 16px; padding: 2rem;
@@ -341,7 +343,7 @@
         </a>
         <a href="#como-funciona" class="btn-secondary">¿Cómo funciona?</a>
       </div>
-      <p class="hero-note">Gratis · 10 análisis por mes · Sin tarjeta de crédito</p>
+      <p class="hero-note">Gratis al registrarte · 10 análisis/mes · Sin tarjeta</p>
     </div>
   </section>
 
@@ -361,7 +363,7 @@
     </div>
     <div class="stat">
       <span class="stat-n">$0</span>
-      <div class="stat-l">Para empezar</div>
+      <div class="stat-l">Para registrarte</div>
     </div>
   </div>
 
@@ -478,7 +480,7 @@
         <div class="plan-price">$0 <span>/ mes</span></div>
         <p class="plan-desc">Para conocer la herramienta y empezar a postular mejor.</p>
         <ul class="plan-features">
-          <li>10 análisis por mes</li>
+          <li>10 análisis por mes <strong>(se renuevan cada mes)</strong></li>
           <li>4 templates de CV</li>
           <li>Análisis ATS + score</li>
           <li>Plan de acción de coaching</li>
