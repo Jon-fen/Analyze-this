@@ -271,6 +271,62 @@ def get_global_stats() -> dict:
     except Exception:
         return {"cvs": 0, "users": 0}
 
+# ─── Activation codes ─────────────────────────────────────────────────────────
+def validate_and_use_code(user_id: str, code: str) -> tuple[bool, str]:
+    try:
+        code = code.strip().upper()
+        res = supabase.table("activation_codes").select("*").eq("code", code).single().execute()
+        row = res.data
+        if not row:
+            return False, "Código inválido."
+        if not row.get("active", True):
+            return False, "Este código ya no está activo."
+        max_uses = row.get("max_uses")
+        used = row.get("uses_count", 0)
+        if max_uses and used >= max_uses:
+            return False, "Este código ya alcanzó su límite de usos."
+        expires = row.get("expires_at")
+        if expires:
+            exp_dt = datetime.fromisoformat(expires.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) > exp_dt:
+                return False, "Este código ha expirado."
+        plan = row.get("grants_plan", "pro_code")
+        supabase.table("profiles").update({
+            "plan": plan,
+            "activation_code": code,
+            "credits_used_this_month": 0
+        }).eq("id", user_id).execute()
+        supabase.table("activation_codes").update({
+            "uses_count": used + 1
+        }).eq("code", code).execute()
+        label = PLAN_CREDITS.get(plan, 10)
+        return True, f"✅ Código activado. Ahora tienes {label} análisis por mes."
+    except Exception:
+        return False, "Código inválido."
+
+def get_all_codes() -> list:
+    try:
+        res = supabase.table("activation_codes").select("*").order("created_at", desc=True).execute()
+        return res.data or []
+    except Exception:
+        return []
+
+def create_code(code: str, description: str, max_uses: int, grants_plan: str, expires_at):
+    try:
+        supabase.table("activation_codes").insert({
+            "code": code.strip().upper(),
+            "description": description,
+            "max_uses": max_uses if max_uses > 0 else None,
+            "grants_plan": grants_plan,
+            "uses_count": 0,
+            "active": True,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        return True
+    except Exception:
+        return False
+
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
     st.markdown("""
@@ -362,10 +418,28 @@ def show_auth_page():
                         st.error(msg)
 
     with tab_signup:
-        st.markdown("Crea tu cuenta gratuita — incluye **5 optimizaciones por mes**.")
+        st.markdown("""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.8rem">
+  <div style="background:rgba(46,117,182,0.1);border:1px solid rgba(46,117,182,0.25);
+      border-radius:8px;padding:0.7rem;text-align:center">
+    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6">Sin código</div>
+    <div style="font-size:1.3rem;font-weight:800;color:#fff">5</div>
+    <div style="font-size:0.72rem;color:#888">análisis/mes</div>
+  </div>
+  <div style="background:rgba(200,151,58,0.12);border:1px solid rgba(200,151,58,0.35);
+      border-radius:8px;padding:0.7rem;text-align:center">
+    <div style="font-size:0.8rem;font-weight:600;color:#E0B060">Con código</div>
+    <div style="font-size:1.3rem;font-weight:800;color:#fff">10</div>
+    <div style="font-size:0.72rem;color:#888">análisis/mes</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
         email2 = st.text_input("Email", key="signup_email")
         password2 = st.text_input("Contraseña (mín. 8 caracteres)", type="password", key="signup_pw")
         password3 = st.text_input("Confirmar contraseña", type="password", key="signup_pw2")
+        activation_code = st.text_input("🎟️ Código de activación (opcional)",
+            placeholder="Ej: ICI2026 — si tienes uno, te da más análisis",
+            key="signup_code")
         if st.button("Crear cuenta", use_container_width=True, key="btn_signup"):
             if not email2 or not password2:
                 st.error("Completa todos los campos.")
@@ -377,8 +451,25 @@ def show_auth_page():
                 with st.spinner("Creando cuenta..."):
                     ok, msg = sign_up(email2, password2)
                 if ok:
-                    st.success(msg)
-                    st.info("👆 Ahora inicia sesión en la pestaña **🔑 Iniciar sesión** con tu email y contraseña.")
+                    if activation_code.strip():
+                        import time; time.sleep(1.5)
+                        try:
+                            new_user = supabase.auth.sign_in_with_password({"email": email2, "password": password2})
+                            if new_user and new_user.user:
+                                code_ok, code_msg = validate_and_use_code(new_user.user.id, activation_code)
+                                supabase.auth.sign_out()
+                                if code_ok:
+                                    st.success(f"¡Cuenta creada! {code_msg}")
+                                else:
+                                    st.success("¡Cuenta creada! (5 análisis/mes)")
+                                    st.warning(f"Código: {code_msg}")
+                            else:
+                                st.success(msg)
+                        except Exception:
+                            st.success(msg)
+                    else:
+                        st.success(msg)
+                    st.info("👆 Inicia sesión en la pestaña **🔑 Iniciar sesión**.")
                 else:
                     st.error(msg)
 
@@ -1261,6 +1352,34 @@ def show_admin_panel():
             st.error(f"Error cargando usuarios: {e}")
 
         st.markdown("---")
+        st.markdown("**🎟️ Códigos de activación:**")
+        codes = get_all_codes()
+        if codes:
+            for c in codes:
+                uses = c.get("uses_count", 0)
+                max_u = c.get("max_uses") or "∞"
+                active = "✅" if c.get("active") else "❌"
+                desc = c.get("description","")
+                grants = c.get("grants_plan","pro_code")
+                st.markdown(f"- {active} **`{c.get('code')}`** · {desc} · {uses}/{max_u} usos · plan: {grants}")
+        else:
+            st.info("No hay códigos aún.")
+        st.markdown("**Crear nuevo código:**")
+        nc1, nc2 = st.columns(2)
+        with nc1:
+            new_code_val  = st.text_input("Código", placeholder="ICI2026", key="new_code")
+            new_code_desc = st.text_input("Descripción", placeholder="Ex alumnos ICI UNAB", key="new_desc")
+            new_code_plan = st.selectbox("Plan que otorga", ["pro_code","pro"], key="new_plan")
+        with nc2:
+            new_code_uses = st.number_input("Máx usos (0=ilimitado)", min_value=0, value=0, key="new_uses")
+            new_code_exp  = st.text_input("Expira (YYYY-MM-DD, opcional)", key="new_exp")
+        if st.button("✅ Crear código", key="btn_create_code"):
+            if new_code_val.strip():
+                ok = create_code(new_code_val, new_code_desc, int(new_code_uses),
+                                 new_code_plan, new_code_exp if new_code_exp else None)
+                if ok: st.success(f"Código `{new_code_val.upper()}` creado."); st.rerun()
+                else: st.error("Error al crear el código.")
+        st.markdown("---")
         st.markdown("**Feedback recibido:**")
         all_fb = get_all_feedback()
         if all_fb:
@@ -1339,6 +1458,19 @@ def show_main_app(user, profile):
             font_size   = st.select_slider("Tamaño de letra",
                 options=[9, 10, 10.5, 11, 12], value=10)
 
+        st.markdown("---")
+        with st.expander("🎟️ ¿Tienes un código?"):
+            existing_code = profile.get("activation_code", "")
+            if existing_code:
+                st.success(f"Código activo: **{existing_code}**")
+            else:
+                code_input = st.text_input("Ingresa tu código", key="activate_code_sidebar",
+                    placeholder="Ej: ICI2026")
+                if st.button("Activar", key="btn_activate_code"):
+                    if code_input.strip():
+                        ok, msg = validate_and_use_code(user.id, code_input)
+                        if ok: st.success(msg); st.rerun()
+                        else: st.error(msg)
         st.markdown("---")
         if st.button("🚪 Cerrar sesión", use_container_width=True):
             sign_out()
