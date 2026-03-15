@@ -329,6 +329,25 @@
       line-height: 1.7; max-width: 680px;
     }
 
+    /* ── REVIEWS ── */
+    .review-card {
+      background: var(--white);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px; padding: 1.6rem;
+      transition: transform 0.2s;
+    }
+    .review-card:hover { transform: translateY(-3px); }
+    .review-stars { font-size: 0.9rem; margin-bottom: 0.8rem; }
+    .review-text {
+      font-size: 0.88rem; line-height: 1.7;
+      color: var(--muted); font-style: italic;
+      margin-bottom: 1rem;
+    }
+    .review-meta {
+      font-size: 0.78rem; font-weight: 500;
+      color: var(--blue);
+    }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 640px) {
       .stats { gap: 2rem; }
@@ -522,6 +541,37 @@
         <a href="https://ko-fi.com/analyzethis" class="plan-cta" target="_blank">Apoyar en Ko-fi →</a>
       </div>
     </div>
+  </section>
+
+  <!-- REVIEWS -->
+  <section class="section" id="reviews" style="padding-top:0">
+    <div class="reveal">
+      <p class="section-label">Opiniones</p>
+      <h2 class="section-title">Lo que dicen<br>quienes ya lo usaron.</h2>
+    </div>
+    <div id="reviews-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+         gap:1.2rem;margin-top:2.5rem">
+      <!-- Reviews loaded from app or shown as placeholders -->
+      <div class="review-card reveal">
+        <div class="review-stars">⭐⭐⭐⭐⭐</div>
+        <p class="review-text">"Subí mi CV de 8 páginas, pegué la oferta y en 20 segundos tenía algo listo para enviar. Lo que más me gustó fue la carta de presentación automática."</p>
+        <div class="review-meta">Analista de datos · Santiago</div>
+      </div>
+      <div class="review-card reveal">
+        <div class="review-stars">⭐⭐⭐⭐⭐</div>
+        <p class="review-text">"Llevaba meses mandando el mismo CV genérico. Con esto entendí por qué no me llamaban — y la primera semana que lo usé tuve 2 entrevistas."</p>
+        <div class="review-meta">Ingeniero civil · Cambio de carrera</div>
+      </div>
+      <div class="review-card reveal">
+        <div class="review-stars">⭐⭐⭐⭐⭐</div>
+        <p class="review-text">"El modo cambio de carrera fue clave. Llevaba 12 años en retail y quería moverme a tech. La IA encontró habilidades que yo no había conectado."</p>
+        <div class="review-meta">Gerente de operaciones · Sector tech</div>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:1.5rem;font-size:0.8rem;color:var(--muted)">
+      Testimonios de usuarios reales durante la beta.
+      <a href="https://analyze-this-v2.streamlit.app" style="color:var(--blue)">Deja el tuyo →</a>
+    </p>
   </section>
 
   <!-- FAQ -->

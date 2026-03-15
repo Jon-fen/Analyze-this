@@ -174,17 +174,30 @@ def consume_credit(user_id: str, current_used: int):
         "credits_used_this_month": current_used + 1
     }).eq("id", user_id).execute()
 
-def save_history(user_id: str, job_title: str, score: int, ats_ok: bool):
+def save_history(user_id: str, job_title: str, score: int, ats_ok: bool) -> int:
+    """Returns the new history row id so we can update outcome later."""
     try:
-        supabase.table("history").insert({
+        res = supabase.table("history").insert({
             "user_id": user_id,
             "job_title": job_title[:120],
             "score_match": score,
             "ats_compatible": ats_ok,
+            "outcome": None,  # null until user reports back
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
+        if res.data:
+            return res.data[0].get("id")
+        return None
     except Exception:
-        pass
+        return None
+
+def update_outcome(history_id: int, outcome: str):
+    """User reports back: got_interview, got_job, no_response, rejected."""
+    try:
+        supabase.table("history").update({"outcome": outcome}).eq("id", history_id).execute()
+        return True
+    except Exception:
+        return False
 
 def get_history(user_id: str) -> list:
     try:
@@ -197,6 +210,53 @@ def get_history(user_id: str) -> list:
         return res.data or []
     except Exception:
         return []
+
+# ─── Feedback system ──────────────────────────────────────────────────────────
+def save_feedback(user_id: str, email: str, rating: int, comment: str, job_title: str):
+    try:
+        supabase.table("feedback").insert({
+            "user_id": user_id,
+            "email": email,
+            "rating": rating,
+            "comment": comment[:500],
+            "job_title": job_title[:120],
+            "approved": False,  # admin must approve before showing publicly
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        return True
+    except Exception:
+        return False
+
+def get_public_reviews() -> list:
+    try:
+        res = (supabase.table("feedback")
+               .select("rating,comment,job_title,created_at")
+               .eq("approved", True)
+               .order("created_at", desc=True)
+               .limit(6)
+               .execute())
+        return res.data or []
+    except Exception:
+        return []
+
+def get_all_feedback() -> list:
+    """Admin only — returns all feedback including unapproved."""
+    try:
+        res = (supabase.table("feedback")
+               .select("*")
+               .order("created_at", desc=True)
+               .limit(50)
+               .execute())
+        return res.data or []
+    except Exception:
+        return []
+
+def approve_feedback(feedback_id: int, approve: bool):
+    try:
+        supabase.table("feedback").update({"approved": approve}).eq("id", feedback_id).execute()
+        return True
+    except Exception:
+        return False
 
 # ─── Usage counter ────────────────────────────────────────────────────────────
 def get_global_stats() -> dict:
@@ -1106,6 +1166,31 @@ def show_results(cv_data, template, fn, fs, max_pages):
     st.success("✅ ¡Tu CV optimizado está listo!")
     st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s)")
 
+    # ── Feedback inmediato — calidad del CV generado ──────────────────────
+    st.markdown("---")
+    with st.expander("⭐ ¿El CV generado se ve bien? (30 segundos)"):
+        st.markdown("**¿Qué tan bien quedó el CV?** — Tu feedback mejora la herramienta.")
+        st.caption("💡 Para reportar si conseguiste entrevista o trabajo, vuelve al historial arriba cuando tengas novedades.")
+        fb_rating = st.select_slider(
+            "Calidad del CV generado:",
+            options=[1, 2, 3, 4, 5],
+            value=5,
+            format_func=lambda x: {1:"😞 Muy mal", 2:"😕 Malo", 3:"😐 Aceptable",
+                                    4:"😊 Bueno", 5:"🤩 Excelente"}[x]
+        )
+        fb_comment = st.text_area(
+            "Comentario (opcional)",
+            placeholder="¿Qué mejorarías del CV generado? ¿Faltó algo? ¿El tono era el correcto?",
+            height=80
+        )
+        if st.button("Enviar opinión", key="btn_feedback"):
+            user_data = st.session_state.get("user")
+            job = cv_data.get("titulo_profesional", "")
+            if save_feedback(user_data.id, user_data.email, fb_rating, fb_comment, job):
+                st.success("¡Gracias! 🙏 Recuerda volver al historial para reportar si consigues entrevista.")
+            else:
+                st.error("Error al enviar. Intenta de nuevo.")
+
     # ── ¿Qué sigue? — herramientas complementarias ─────────────────────────
     st.markdown("---")
     st.subheader("🚀 ¿Qué sigue? Prepara el resto de tu postulación")
@@ -1170,6 +1255,33 @@ def show_admin_panel():
                 st.info("No hay usuarios todavía.")
         except Exception as e:
             st.error(f"Error cargando usuarios: {e}")
+
+        st.markdown("---")
+        st.markdown("**Feedback recibido:**")
+        all_fb = get_all_feedback()
+        if all_fb:
+            for fb in all_fb:
+                stars = "⭐" * fb.get("rating", 0)
+                approved = fb.get("approved", False)
+                fid = fb.get("id")
+                comment = fb.get("comment", "—")
+                email = fb.get("email", "")
+                created = fb.get("created_at", "")[:10]
+                job = fb.get("job_title", "")
+                status = "✅ Publicado" if approved else "⏳ Pendiente"
+                with st.container():
+                    st.markdown(f"{stars} **{job}** · {email} · {created} · {status}")
+                    st.markdown(f"> {comment}")
+                    col_a, col_r, _ = st.columns([1, 1, 4])
+                    with col_a:
+                        if st.button("✅ Aprobar", key=f"approve_{fid}"):
+                            approve_feedback(fid, True); st.rerun()
+                    with col_r:
+                        if st.button("❌ Rechazar", key=f"reject_{fid}"):
+                            approve_feedback(fid, False); st.rerun()
+                    st.markdown("---")
+        else:
+            st.info("No hay feedback todavía.")
 
 # ─── Main app (authenticated) ─────────────────────────────────────────────────
 def show_main_app(user, profile):
@@ -1249,14 +1361,44 @@ def show_main_app(user, profile):
     # ── Historial ──────────────────────────────────────────────────────────
     history = get_history(user.id)
     if history:
-        with st.expander(f"📜 Historial de optimizaciones ({len(history)})"):
+        # Count pending outcomes
+        pending = [h for h in history if not h.get("outcome")]
+        label = f"📜 Historial ({len(history)})"
+        if pending:
+            label += f" · 🔔 {len(pending)} pendiente{'s' if len(pending)>1 else ''} de resultado"
+        with st.expander(label):
+            outcome_labels = {
+                "got_interview": "🎤 Obtuve entrevista",
+                "got_job":       "🎉 Conseguí el trabajo",
+                "no_response":   "📭 Sin respuesta",
+                "rejected":      "❌ Rechazado",
+            }
             for h in history:
                 created = h.get("created_at","")[:10]
-                score = h.get("score_match",0)
-                ats = "✅" if h.get("ats_compatible") else "❌"
-                title = h.get("job_title","—")
-                sc_col = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
-                st.markdown(f"- {created} · **{title}** · {ats} ATS · {sc_col} {score}%")
+                score   = h.get("score_match", 0)
+                ats     = "✅" if h.get("ats_compatible") else "❌"
+                title   = h.get("job_title", "—")
+                sc_col  = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+                outcome = h.get("outcome")
+                hid     = h.get("id")
+
+                if outcome:
+                    outcome_icon = outcome_labels.get(outcome, outcome)
+                    st.markdown(f"- {created} · **{title}** · {ats} ATS · {sc_col} {score}% · {outcome_icon}")
+                else:
+                    col_info, col_select, col_btn = st.columns([3, 2, 1])
+                    with col_info:
+                        st.markdown(f"**{title}** · {created} · {sc_col} {score}%")
+                    with col_select:
+                        sel = st.selectbox("¿Resultado?", ["— pendiente —"] + list(outcome_labels.keys()),
+                                           key=f"outcome_{hid}",
+                                           format_func=lambda x: outcome_labels.get(x, x),
+                                           label_visibility="collapsed")
+                    with col_btn:
+                        if st.button("Guardar", key=f"save_outcome_{hid}"):
+                            if sel != "— pendiente —":
+                                update_outcome(hid, sel)
+                                st.rerun()
 
     # ── Inputs ─────────────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
@@ -1386,12 +1528,14 @@ def show_main_app(user, profile):
                 st.session_state["api_credits_error"] = False
                 # Consume credit and save history
                 consume_credit(user.id, credits_used)
-                save_history(
+                history_id = save_history(
                     user.id,
                     cv_data.get("titulo_profesional", "Rol desconocido"),
                     cv_data.get("score_match", 0),
                     cv_data.get("ats_compatible", True)
                 )
+                if history_id:
+                    st.session_state["last_history_id"] = history_id
             except json.JSONDecodeError:
                 st.error("Error procesando respuesta. Intenta nuevamente."); st.stop()
             except anthropic.AuthenticationError:
