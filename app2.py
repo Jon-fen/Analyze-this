@@ -297,10 +297,10 @@ def show_auth_page():
     c1, c2, c3 = st.columns(3)
     with c1:
         with st.container(border=True):
-            st.markdown("**🆓 Free**\n5 optimizaciones/mes\nCV descargable\nAnálisis ATS + coaching")
+            st.markdown("**🆓 Free**\n5 análisis/mes\nCV descargable\nAnálisis ATS + coaching")
     with c2:
         with st.container(border=True):
-            st.markdown("**⭐ Pro**\n50 optimizaciones/mes\nTodo lo de Free\nHistorial completo")
+            st.markdown("**⭐ Pro**\n50 análisis/mes\nTodo lo de Free\nHistorial completo")
     with c3:
         with st.container(border=True):
             st.markdown("**🏢 Admin**\nUso ilimitado\nPanel de gestión\nVista de todos los usuarios")
@@ -1135,7 +1135,7 @@ def show_admin_panel():
                     plan = u.get("plan","free")
                     used = u.get("credits_used_this_month",0)
                     limit = PLAN_CREDITS.get(plan, 5)
-                    st.markdown(f"- **{u.get('email','')}** · {plan} · {used}/{limit if plan != 'admin' else '∞'} créditos usados")
+                    st.markdown(f"- **{u.get('email','')}** · {plan} · {used}/{limit if plan != 'admin' else '∞'} análisis usados")
             else:
                 st.info("No hay usuarios todavía.")
         except Exception as e:
@@ -1160,15 +1160,15 @@ def show_main_app(user, profile):
             badge_class = "credit-badge credit-low"
 
         credit_display = "∞" if plan == "admin" else f"{credits_left}"
-        credit_label = "∞ créditos" if plan == "admin" else f"{credits_left} crédito{'s' if credits_left != 1 else ''} restante{'s' if credits_left != 1 else ''}"
+        credit_label = "∞ análisis" if plan == "admin" else f"{credits_left} análisis restante{'s' if credits_left != 1 else ''}"
         st.markdown(f'<span class="{badge_class}">{plan.upper()} · {credit_label}</span>', unsafe_allow_html=True)
 
         if plan != "admin":
             st.progress(min(credits_used / monthly_limit, 1.0))
-            st.caption(f"{credits_used} / {monthly_limit} usados este mes")
+            st.caption(f"{credits_used} / {monthly_limit} análisis usados este mes")
 
         if credits_left == 0 and plan != "admin":
-            st.warning("Sin créditos este mes. Contacta al admin para subir a Pro.")
+            st.warning("Sin análisis este mes. Contacta al admin para subir a Pro.")
 
         # Fallback API key if service has no credits
         if st.session_state.get("api_credits_error"):
@@ -1301,7 +1301,7 @@ def show_main_app(user, profile):
     if credits_left == 0 and plan != "admin" and not st.session_state.get("user_api_key"):
         st.button("🚀 Optimizar mi CV", use_container_width=True, disabled=True)
         st.markdown("""<div style="background:#FFF8E1;border-left:4px solid #FFA000;padding:0.8rem 1rem;border-radius:6px;margin-top:0.5rem">
-        <strong>Agotaste tus optimizaciones del mes 🎯</strong><br>
+        <strong>Agotaste tus análisis del mes 🎯</strong><br>
         Tu plan Free incluye 10 CVs al mes. ¿Quieres más?<br>
         <a href="mailto:contacto@analyze-this.app" style="color:#1B6CA8">Escríbenos para subir a Pro →</a>
         </div>""", unsafe_allow_html=True)
