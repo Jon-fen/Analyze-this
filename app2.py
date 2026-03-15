@@ -25,37 +25,101 @@ st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="cent
 
 st.markdown("""
 <style>
-.block-container { padding-top: 2rem; padding-bottom: 2rem; }
-div[data-testid="stDownloadButton"] button {
-    background-color: #1B6CA8; color: white;
-    font-size: 1rem; padding: 0.6rem 1.5rem;
-    border-radius: 6px; width: 100%; }
-.coach-card { background: #F0F9FF; border-left: 4px solid #2E75B6;
-              padding: 0.75rem 1rem; border-radius: 4px;
-              margin-bottom: 0.5rem; font-size: 0.95rem; }
-.score-explain { background: #F8F8F8; border-radius: 8px;
-                 padding: 0.75rem 1rem; font-size: 0.9rem;
-                 color: #444; margin-top: 0.5rem; }
-.credit-badge { background: #E8F5E9; border: 1px solid #4CAF50;
-                border-radius: 20px; padding: 0.2rem 0.8rem;
-                font-size: 0.85rem; font-weight: 600; color: #2E7D32;
-                display: inline-block; }
-.credit-low   { background: #FFF3E0; border-color: #FF9800; color: #E65100; }
-.credit-zero  { background: #FFEBEE; border-color: #F44336; color: #B71C1C; }
-.warn-truncate { background: #FFF8E1; border-left: 3px solid #FFA000;
-                 padding: 0.5rem 0.8rem; border-radius: 4px;
-                 font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
-.tpl-card { border: 2px solid #DDD; border-radius: 10px; padding: 0.9rem 1rem;
-            cursor: pointer; transition: all 0.15s; background: #FAFAFA;
-            margin-bottom: 0.3rem; }
-.tpl-card:hover { border-color: #2E75B6; background: #F0F7FF; }
-.tpl-card.selected { border-color: #1B6CA8; background: #E8F4FD;
-                     box-shadow: 0 0 0 3px #BDD9F2; }
-.tpl-title { font-weight: 700; font-size: 1rem; margin-bottom: 0.2rem; }
-.tpl-ideal { font-size: 0.78rem; color: #888; margin-bottom: 0.4rem; }
-.tpl-preview { font-family: monospace; font-size: 0.72rem; color: #555;
-               background: #F5F5F5; border-radius: 4px; padding: 0.4rem 0.5rem;
-               white-space: pre; line-height: 1.45; }
+  /* ── Force light mode with landing palette ── */
+  :root, [data-theme="dark"], [data-theme="light"] {
+    --background-color: #F7F4EF !important;
+    --secondary-background-color: #EDE9E1 !important;
+    --text-color: #0F1117 !important;
+  }
+  .stApp { background-color: #F7F4EF !important; }
+  section[data-testid="stSidebar"] {
+    background-color: #EDE9E1 !important;
+    border-right: 1px solid rgba(0,0,0,0.08) !important;
+  }
+  section[data-testid="stSidebar"] * { color: #0F1117 !important; }
+
+  /* ── Main content ── */
+  .block-container {
+    padding-top: 2rem; padding-bottom: 2rem;
+    max-width: 820px;
+  }
+
+  /* ── Inputs ── */
+  .stTextInput input, .stTextArea textarea, .stSelectbox select {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(0,0,0,0.12) !important;
+    color: #0F1117 !important;
+    border-radius: 8px !important;
+  }
+
+  /* ── Primary buttons ── */
+  .stButton > button[kind="primary"], div[data-testid="stDownloadButton"] button {
+    background-color: #1B4F8A !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    padding: 0.55rem 1.2rem !important;
+  }
+  .stButton > button[kind="primary"]:hover { background-color: #2E75B6 !important; }
+
+  /* ── Secondary buttons ── */
+  .stButton > button[kind="secondary"] {
+    background: white !important;
+    border: 1.5px solid #CCC !important;
+    color: #0F1117 !important;
+    border-radius: 8px !important;
+  }
+
+  /* ── Download button full width ── */
+  div[data-testid="stDownloadButton"] button {
+    font-size: 0.95rem !important;
+    padding: 0.6rem 1.5rem !important;
+    width: 100% !important;
+    border-radius: 8px !important;
+  }
+
+  /* ── Cards & callouts ── */
+  .coach-card {
+    background: #EBF3FB; border-left: 4px solid #1B4F8A;
+    padding: 0.75rem 1rem; border-radius: 6px;
+    margin-bottom: 0.5rem; font-size: 0.95rem; color: #0F1117;
+  }
+  .score-explain {
+    background: #F0EDE8; border-radius: 8px;
+    padding: 0.75rem 1rem; font-size: 0.9rem;
+    color: #555; margin-top: 0.5rem;
+  }
+  .warn-truncate {
+    background: #FFF8E1; border-left: 3px solid #C8973A;
+    padding: 0.5rem 0.8rem; border-radius: 4px;
+    font-size: 0.85rem; color: #555; margin-bottom: 0.5rem;
+  }
+
+  /* ── Credit badge ── */
+  .credit-badge {
+    background: #EBF3FB; border: 1px solid #1B4F8A;
+    border-radius: 20px; padding: 0.2rem 0.8rem;
+    font-size: 0.85rem; font-weight: 600; color: #1B4F8A;
+    display: inline-block;
+  }
+  .credit-low  { background: #FFF3E0; border-color: #FF9800; color: #E65100; }
+  .credit-zero { background: #FFEBEE; border-color: #F44336; color: #B71C1C; }
+
+  /* ── Tabs ── */
+  .stTabs [data-baseweb="tab-list"] { background: transparent !important; }
+  .stTabs [data-baseweb="tab"] { color: #666 !important; }
+  .stTabs [aria-selected="true"] { color: #1B4F8A !important; border-bottom-color: #1B4F8A !important; }
+
+  /* ── Metrics ── */
+  [data-testid="metric-container"] {
+    background: #FFFFFF; border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 10px; padding: 0.8rem 1rem;
+  }
+
+  /* ── Hide Streamlit branding ── */
+  #MainMenu, footer, header { visibility: hidden; }
+  [data-testid="stToolbar"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -239,6 +303,27 @@ def show_auth_page():
         st.markdown("""<div style="text-align:center;color:#999;
             font-size:0.8rem;margin:0.3rem 0 0.5rem 0">— o usa tu email —</div>""",
             unsafe_allow_html=True)
+
+    # Value prop — why register
+    st.markdown("""
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8rem;margin-bottom:1.2rem">
+  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+    <div style="font-size:1.4rem">📄</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">10 análisis gratis</div>
+    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">por mes, sin tarjeta</div>
+  </div>
+  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+    <div style="font-size:1.4rem">🎨</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">4 templates</div>
+    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">listos para enviar</div>
+  </div>
+  <div style="background:#EBF3FB;border-radius:10px;padding:0.9rem;text-align:center">
+    <div style="font-size:1.4rem">🎤</div>
+    <div style="font-size:0.8rem;font-weight:600;color:#1B4F8A;margin-top:0.3rem">Coaching incluido</div>
+    <div style="font-size:0.72rem;color:#666;margin-top:0.2rem">carta + entrevista</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     st.markdown("---")
     tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "📝 Crear cuenta"])
