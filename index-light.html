@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CV Optimizer ATS — Dark · Tu experiencia, optimizada para cada oportunidad</title>
+  <title>CV Optimizer ATS — Tu experiencia, optimizada para cada oportunidad</title>
   <meta name="description" content="Sube tu CV completo, pega la oferta laboral, descarga tu CV adaptado y listo para enviar. Supera los filtros ATS automáticos.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,700;0,900;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -11,14 +11,14 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --ink:    #E8EEF4;
-      --paper:  #0D1117;
-      --cream:  #161B22;
-      --blue:   #4A9EDB;
-      --blue-lt:#6BAED6;
-      --gold:   #E0B060;
-      --muted:  #8B96A0;
-      --white:  #1C2333;
+      --ink:    #0F1117;
+      --paper:  #F7F4EF;
+      --cream:  #EDE9E1;
+      --blue:   #1B4F8A;
+      --blue-lt:#2E75B6;
+      --gold:   #C8973A;
+      --muted:  #6B6560;
+      --white:  #FFFFFF;
     }
 
     html { scroll-behavior: smooth; }
@@ -35,7 +35,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
       padding: 1.1rem 5%;
-      background: rgba(13,17,23,0.95);
+      background: rgba(247,244,239,0.92);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(0,0,0,0.06);
     }
@@ -65,7 +65,7 @@
       position: absolute; top: -20%; right: -10%;
       width: 70vw; height: 70vw; max-width: 800px; max-height: 800px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(74,158,219,0.12) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(27,79,138,0.07) 0%, transparent 70%);
       pointer-events: none;
     }
     .hero-inner { max-width: 780px; text-align: center; }
@@ -167,7 +167,7 @@
     .step-num {
       font-family: 'Fraunces', serif;
       font-size: 3.5rem; font-weight: 900; line-height: 1;
-      color: rgba(74,158,219,0.15); position: absolute;
+      color: rgba(27,79,138,0.08); position: absolute;
       top: 0.8rem; right: 1rem;
     }
     .step-icon { font-size: 1.8rem; margin-bottom: 1rem; }
@@ -189,7 +189,7 @@
     .feature:hover { border-color: var(--blue-lt); }
     .feature-icon {
       width: 42px; height: 42px; border-radius: 10px;
-      background: rgba(74,158,219,0.12);
+      background: rgba(27,79,138,0.08);
       display: flex; align-items: center; justify-content: center;
       font-size: 1.2rem; margin-bottom: 1rem;
     }
@@ -230,7 +230,7 @@
     }
     .plan.featured {
       border-color: var(--blue);
-      box-shadow: 0 8px 32px rgba(74,158,219,0.2);
+      box-shadow: 0 8px 32px rgba(27,79,138,0.12);
       position: relative;
     }
     .plan-badge {
@@ -272,34 +272,34 @@
     /* ── CTA FINAL ── */
     .cta-section {
       text-align: center; padding: 7rem 5%;
-      background: #070C12; color: var(--ink);
+      background: var(--ink); color: var(--white);
       position: relative; overflow: hidden;
     }
     .cta-section::before {
       content: '';
       position: absolute; top: -50%; left: 50%; transform: translateX(-50%);
       width: 600px; height: 600px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(74,158,219,0.2) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(27,79,138,0.4) 0%, transparent 70%);
       pointer-events: none;
     }
-    .cta-section h2 { color: var(--ink) !important;
+    .cta-section h2 {
       font-family: 'Fraunces', serif;
       font-size: clamp(2rem, 4vw, 3.5rem);
       font-weight: 900; letter-spacing: -0.02em;
       margin-bottom: 1rem; position: relative;
     }
-    .cta-section p { color: var(--muted); margin-bottom: 2.5rem; font-size: 1rem; position: relative; }
-    .cta-section .btn-primary { background: var(--blue); color: #0D1117; position: relative; }
-    .cta-section .btn-primary:hover { background: var(--blue-lt); }
+    .cta-section p { color: rgba(255,255,255,0.6); margin-bottom: 2.5rem; font-size: 1rem; position: relative; }
+    .cta-section .btn-primary { background: var(--white); color: var(--ink); position: relative; }
+    .cta-section .btn-primary:hover { background: var(--cream); }
 
     /* ── FOOTER ── */
     footer {
-      background: #070C12; color: rgba(232,238,244,0.4);
+      background: var(--ink); color: rgba(255,255,255,0.4);
       text-align: center; padding: 1.8rem 5%;
-      font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.06);
     }
-    footer a { color: rgba(232,238,244,0.5); text-decoration: none; }
-    footer a:hover { color: var(--ink); }
+    footer a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    footer a:hover { color: var(--white); }
 
     /* ── ANIMATIONS ── */
     @keyframes fadeUp {

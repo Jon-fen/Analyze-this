@@ -1275,6 +1275,8 @@ def show_main_app(user, profile):
         cv_file = st.file_uploader("Sube tu CV", type=["pdf","docx"], label_visibility="collapsed")
         cv_text_manual = st.text_area("O pega el texto aquí", height=150,
             placeholder="Pega el contenido de tu CV si no tienes archivo...")
+        if cv_file and cv_text_manual.strip():
+            st.caption("ℹ️ Se usarán tanto el archivo como el texto pegado — el texto se agrega al final del CV.")
     with col2:
         st.subheader("💼 Oferta Laboral")
         job_url = st.text_input("🔗 Link de la oferta",
