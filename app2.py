@@ -616,10 +616,14 @@ def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_c
 
 {"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica."}
 
+REGLA ABSOLUTA: NO INVENTAR NADA. Cada dato, skill, herramienta, cargo y logro DEBE aparecer
+textualmente en el CV original. Si el CV no menciona SAP, no pongas SAP. Si no dice "especialista en X",
+no lo pongas. Inventar experiencias o skills es un error crítico inaceptable.
+
 INSTRUCCIONES:
-1. NO inventes nada — solo reorganiza y reescribe lo que existe
-2. Integra las palabras clave exactas de la oferta de forma natural
-3. Reescribe logros con verbos de acción + impacto medible
+1. Solo reorganiza y reescribe lo que ya existe — NUNCA agregues información nueva
+2. Integra las palabras clave de la oferta SOLO si tienen respaldo en el CV original
+3. Reescribe logros con verbos de acción — pero con hechos reales del CV
 4. Respeta el límite de {{max_pages}} página(s) ≈ {{max_words}} palabras
 5. Detecta qué ATS probablemente usa la empresa según su nombre/industria:
    - Empresas grandes/corporativas → Workday, SAP SuccessFactors
@@ -679,6 +683,7 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
             msg = client.messages.create(
                 model=model_id,
                 max_tokens=5000,
+                temperature=0,
                 messages=[{"role": "user", "content": prompt}]
             )
             raw = msg.content[0].text.strip()
@@ -1193,7 +1198,7 @@ Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para r
             st.error(f"Error generando {labels[tool]}: {e}")
 
 # ─── Results display ──────────────────────────────────────────────────────────
-def show_results(cv_data, template, fn, fs, max_pages):
+def show_results(cv_data, fn, fs, max_pages):
     st.markdown("---")
     st.subheader("📊 Análisis de Compatibilidad")
     if cv_data.get("_was_truncated"):
@@ -1241,25 +1246,36 @@ def show_results(cv_data, template, fn, fs, max_pages):
         for tip in coaching:
             st.markdown(f'<div class="coach-card"><strong>{tip.get("categoria","")}</strong><br>{tip.get("tip","")}</div>', unsafe_allow_html=True)
     st.markdown("---")
-    st.subheader("⬇️ Descarga tu CV")
-    st.markdown("**El análisis está listo — descarga en cualquier template sin coste adicional:**")
+    st.subheader("⬇️ Descarga tu CV optimizado")
+    st.markdown("Elige el template que prefieras — todos usan el mismo análisis, solo cambia el diseño:")
     nombre = cv_data.get("nombre","cv").replace(" ","_")
+
     dl1, dl2, dl3, dl4 = st.columns(4)
     for col, (tname, builder) in zip([dl1,dl2,dl3,dl4], BUILDERS.items()):
+        info = TEMPLATES.get(tname, {})
         with col:
+            # Template card mini
+            st.markdown(f"""<div style="text-align:center;padding:0.4rem 0;
+                font-size:0.78rem;color:#888;margin-bottom:0.3rem">
+                <span style="font-size:1.2rem">{info.get('icon','')}</span><br>
+                <strong style="color:#ccc">{tname}</strong><br>
+                <span style="font-size:0.7rem">{info.get('ideal','')[:25]}</span>
+                </div>""", unsafe_allow_html=True)
             try:
                 buf = builder(cv_data, fn, float(fs))
                 st.download_button(
-                    label=f"⬇️ {tname}",
+                    label=f"⬇️ Descargar",
                     data=buf,
                     file_name=f"CV_ATS_{nombre}_{tname}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
+                    use_container_width=True,
+                    key=f"dl_{tname}_{nombre}"
                 )
             except Exception as e:
                 st.error(f"Error {tname}: {e}")
+
     st.success("✅ ¡Tu CV optimizado está listo!")
-    st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s)")
+    st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s) · todos los templates usan el mismo análisis")
 
     # ── Feedback inmediato — calidad del CV generado ──────────────────────
     st.markdown("---")
@@ -1613,49 +1629,13 @@ def show_main_app(user, profile):
         job_description = st.text_area("O pega el texto aquí", height=215,
             placeholder="Pega aquí el texto de la oferta...")
 
-    # ── Template — collapsed by default, all 4 available post-optimize ─────
-    with st.expander("🎨 Preferencia de template (opcional — obtienes los 4 al optimizar)", expanded=False):
-      st.markdown("Selecciona tu preferencia. **Recibirás los 4 templates en la descarga final sin costo extra.**")
-
-    if "template_choice" not in st.session_state:
-        st.session_state["template_choice"] = "Clásico"
-
-    tc1, tc2, tc3, tc4 = st.columns(4)
-    for col, tname in zip([tc1, tc2, tc3, tc4], TEMPLATES.keys()):
-        info = TEMPLATES[tname]
-        is_sel = st.session_state["template_choice"] == tname
-        border_col = info["color"] if is_sel else "#CCCCCC"
-        bg_col = info["tags"][0] if is_sel else "#FAFAFA"
-        accent = info["color"]
-        check = "✅ " if is_sel else ""
-        with col:
-            st.markdown(f"""
-<div style="border:2px solid {border_col};border-radius:12px;
-    padding:1rem;background:{bg_col};height:260px;
-    display:flex;flex-direction:column;
-    transition:all 0.2s;">
-  <div style="font-size:1.6rem;margin-bottom:0.3rem;">{info["icon"]}</div>
-  <div style="font-weight:700;font-size:1rem;color:{accent};
-      margin-bottom:0.2rem;">{check}{tname}</div>
-  <div style="font-size:0.72rem;color:#777;margin-bottom:0.5rem;
-      font-style:italic;">{info["ideal"]}</div>
-  <div style="font-size:0.78rem;color:#444;line-height:1.5;flex:1;overflow:hidden;">
-      {info["desc"]}</div>
-</div>""", unsafe_allow_html=True)
-            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-            if st.button(f"{'✅ Seleccionado' if is_sel else 'Seleccionar'}", key=f"tpl_{tname}",
-                         use_container_width=True,
-                         type="primary" if is_sel else "secondary"):
-                st.session_state["template_choice"] = tname
-                st.rerun()
-
-    template = st.session_state.get("template_choice", "Clásico")
     st.markdown("---")
+    # Template is chosen at download time, not before — avoids re-analysis
 
     # ── Regenerate only ────────────────────────────────────────────────────
     if st.session_state.get("regen_docx") and st.session_state.get("cv_data"):
         st.session_state["regen_docx"] = False
-        show_results(st.session_state["cv_data"], template, font_family, font_size, max_pages)
+        show_results(st.session_state["cv_data"], font_family, font_size, max_pages)
         st.stop()
 
     # ── Main optimize button ───────────────────────────────────────────────
@@ -1669,22 +1649,30 @@ def show_main_app(user, profile):
         st.stop()
 
     if st.button("🚀 Optimizar mi CV", use_container_width=True):
-        # Resolve job text
+        # Resolve job text — cache scraped result to avoid multiple calls
         final_job = job_description.strip()
-        if job_url.strip():
-            if not is_valid_url(job_url):
-                st.warning("⚠️ El link no parece válido.")
+        url_key = job_url.strip()
+        cached_url = st.session_state.get("_cached_job_url", "")
+        cached_text = st.session_state.get("_cached_job_text", "")
+
+        if url_key and is_valid_url(url_key):
+            if url_key == cached_url and cached_text:
+                final_job = cached_text  # use cache, no re-scrape
             else:
                 with st.spinner("🔍 Leyendo la oferta desde el link..."):
                     try:
-                        scraped = scrape_job_url(job_url.strip())
+                        scraped = scrape_job_url(url_key)
                         if scraped:
                             final_job = scraped
+                            st.session_state["_cached_job_url"]  = url_key
+                            st.session_state["_cached_job_text"] = scraped
                             st.success(f"✅ Oferta leída ({len(scraped):,} caracteres)")
                         else:
                             st.warning("No se pudo extraer texto del link.")
                     except ValueError as e:
                         st.warning(str(e))
+        elif url_key:
+            st.warning("⚠️ El link no parece válido.")
 
         if not final_job:
             st.error("⚠️ Pega la oferta o ingresa un link válido.")
@@ -1706,35 +1694,50 @@ def show_main_app(user, profile):
         if not cv_text:
             st.error("⚠️ Sube un CV o pega el texto."); st.stop()
 
-        # Call Claude
-        with st.spinner("🤖 Analizando compatibilidad, keywords y preparando coaching..."):
-            try:
-                career_change = st.session_state.get("career_change_mode", False)
-                cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
-                st.session_state["cv_data"] = cv_data
-                st.session_state["api_credits_error"] = False
-                # Consume credit and save history
-                consume_credit(user.id, credits_used)
-                history_id = save_history(
-                    user.id,
-                    cv_data.get("titulo_profesional", "Rol desconocido"),
-                    cv_data.get("score_match", 0),
-                    cv_data.get("ats_compatible", True)
-                )
-                if history_id:
-                    st.session_state["last_history_id"] = history_id
-            except json.JSONDecodeError:
-                st.error("Error procesando respuesta. Intenta nuevamente."); st.stop()
-            except anthropic.AuthenticationError:
-                st.error("API Key inválida."); st.stop()
-            except anthropic.RateLimitError:
-                st.session_state["api_credits_error"] = True
-                st.error("⚠️ Servicio sin saldo. Ingresa tu API Key en el panel lateral.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error inesperado: {e}"); st.stop()
+        # Call Claude — show staged progress
+        prog = st.progress(0, text="📄 Preparando tu CV para análisis...")
+        prog.progress(15, text="🔍 Identificando keywords de la oferta...")
+        prog.progress(35, text="🤖 Claude está analizando la compatibilidad...")
+        try:
+            career_change = st.session_state.get("career_change_mode", False)
+            cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
+            prog.progress(80, text="✍️ Generando coaching personalizado...")
+            st.session_state["cv_data"] = cv_data
+            st.session_state["cv_original_text"] = cv_text[:2000]
+            st.session_state["api_credits_error"] = False
+            prog.progress(100, text="✅ ¡Análisis completado!")
+            time.sleep(0.4)
+            prog.empty()
+            consume_credit(user.id, credits_used)
+            history_id = save_history(
+                user.id,
+                cv_data.get("titulo_profesional", "Rol desconocido"),
+                cv_data.get("score_match", 0),
+                cv_data.get("ats_compatible", True)
+            )
+            if history_id:
+                st.session_state["last_history_id"] = history_id
+        except json.JSONDecodeError:
+            prog.empty()
+            st.error("Error procesando respuesta. Intenta nuevamente."); st.stop()
+        except anthropic.AuthenticationError:
+            prog.empty()
+            st.error("API Key inválida."); st.stop()
+        except anthropic.RateLimitError:
+            prog.empty()
+            st.session_state["api_credits_error"] = True
+            st.error("⚠️ Servicio sin saldo. Ingresa tu API Key en el panel lateral.")
+            st.rerun()
+        except Exception as e:
+            prog.empty()
+            st.error(f"Error inesperado: {e}"); st.stop()
 
-        show_results(cv_data, template, font_family, font_size, max_pages)
+        show_results(cv_data, font_family, font_size, max_pages)
+
+    # Show cached results if available (e.g. after sidebar setting change)
+    elif st.session_state.get("cv_data"):
+        st.info("✅ Análisis previo disponible. Descarga en cualquier formato o haz un nuevo análisis.")
+        show_results(st.session_state["cv_data"], font_family, font_size, max_pages)
 
     st.markdown("---")
     st.caption("CV Optimizer ATS · Powered by Claude AI · Anthropic")
