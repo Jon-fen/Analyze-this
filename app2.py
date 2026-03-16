@@ -1868,7 +1868,7 @@ def show_main_app(user, profile):
         # Call Claude — show staged progress
         prog = st.progress(0, text="📄 Preparando tu CV para análisis...")
         prog.progress(15, text="🔍 Identificando keywords de la oferta...")
-        prog.progress(35, text="🤖 Claude está analizando la compatibilidad...")
+        prog.progress(35, text="🤖 Nuestros modelos están analizando la compatibilidad...")
         try:
             career_change = st.session_state.get("career_change_mode", False)
             cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
