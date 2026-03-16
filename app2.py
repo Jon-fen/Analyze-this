@@ -349,7 +349,7 @@ def show_auth_page():
     st.markdown("""
 <div style="text-align:center;padding:1.5rem 0 0.5rem 0">
   <div style="font-size:2.5rem;margin-bottom:0.3rem">🎯</div>
-  <h1 style="font-size:1.8rem;font-weight:800;margin:0">CV Optimizer ATS</h1>
+  <h1 style="font-size:1.8rem;font-weight:800;margin:0">CV Optimizer ATS <span style="font-size:0.6rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;border-radius:20px;font-weight:700;vertical-align:middle">BETA</span></h1>
   <p style="color:#666;font-size:1rem;margin:0.4rem 0 0 0">
     Sube tu CV completo. Pega la oferta. Descarga el CV listo para enviar.<br>
     <span style="font-size:0.85rem;color:#999">Tu experiencia, optimizada para cada oportunidad.</span>
@@ -1343,9 +1343,7 @@ def show_results(cv_data, fn, fs, max_pages):
     st.subheader("📊 Análisis de Compatibilidad")
     if cv_data.get("_was_truncated"):
         st.markdown('<div class="warn-truncate">ℹ️ Tu CV era muy extenso. Se analizaron hasta ~15 páginas de tu historial (las más recientes y relevantes). Si activaste el modo cambio de carrera, se procesó el documento completo.</div>', unsafe_allow_html=True)
-    model_used = cv_data.get("_model_used", "haiku")
-    model_label = "⚡ Haiku (rápido)" if model_used == "haiku" else "🧠 Opus (profundo — score bajo detectado)"
-    st.caption(f"Modelo usado: {model_label}")
+    # Model info kept internal — not shown to user
     ats_detected = cv_data.get("ats_detectado", "")
     ats_ok  = cv_data.get("ats_compatible", True)
     ats_msg = cv_data.get("ats_razon", "")
@@ -1715,7 +1713,7 @@ def show_main_app(user, profile):
     nombre_usuario = profile.get('email','').split('@')[0]
     st.markdown(f"""
 <div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
-  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS</h1>
+  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS <span style="font-size:0.65rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;border-radius:20px;font-weight:600;vertical-align:middle;letter-spacing:0.05em">BETA</span></h1>
   <p style="color:#888;margin:0.2rem 0 0 0;font-size:0.88rem">
     Hola, <strong style="color:#aaa">{nombre_usuario}</strong> — sube tu CV, pega la oferta, descarga listo.
   </p>
@@ -1868,7 +1866,7 @@ def show_main_app(user, profile):
         # Call Claude — show staged progress
         prog = st.progress(0, text="📄 Preparando tu CV para análisis...")
         prog.progress(15, text="🔍 Identificando keywords de la oferta...")
-        prog.progress(35, text="🤖 Nuestros modelos están analizando la compatibilidad...")
+        prog.progress(35, text="🤖 Claude está analizando la compatibilidad...")
         try:
             career_change = st.session_state.get("career_change_mode", False)
             cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
