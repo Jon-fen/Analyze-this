@@ -346,9 +346,6 @@ def create_code(code: str, description: str, max_uses: int, grants_plan: str, ex
 
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
-    # Handle OAuth callback
-    handle_oauth_callback()
-
     # Back to guest mode
     if st.session_state.get("guest_cv_data"):
         if st.button("← Volver al análisis", key="btn_back_to_guest"):
