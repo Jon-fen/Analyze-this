@@ -1965,10 +1965,18 @@ def show_guest_mode():
         job_description = st.text_area("O pega el texto aquí", height=215,
             placeholder="Pega aquí el texto de la oferta...")
 
+    # Login button top right
+    _, btn_col = st.columns([4, 1])
+    with btn_col:
+        if st.button("🔑 Iniciar sesión", use_container_width=True):
+            st.session_state["show_login"] = True
+            st.rerun()
+
     st.markdown("---")
 
-    # If guest already ran analysis, show results with gate
+    # If guest already ran analysis, show results with gate — hide inputs
     if st.session_state.get("guest_cv_data"):
+        st.info("✅ Análisis completado — regístrate para descargar tu CV optimizado.")
         _show_guest_results(st.session_state["guest_cv_data"])
         return
 
@@ -2098,9 +2106,9 @@ def _show_guest_results(cv_data):
             st.session_state["show_login"] = True
             st.rerun()
 
-    if st.button("🔄 Analizar otro CV", use_container_width=False):
-        st.session_state.pop("guest_cv_data", None)
-        st.rerun()
+    # No "analyze another" option — one free analysis per session
+    # User must register to continue. This is intentional.
+    st.caption("¿Quieres analizar otro CV? Regístrate gratis — tienes 5 análisis/mes.")
 
 
 # ─── Router ───────────────────────────────────────────────────────────────────
