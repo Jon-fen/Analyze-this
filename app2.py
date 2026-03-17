@@ -346,6 +346,16 @@ def create_code(code: str, description: str, max_uses: int, grants_plan: str, ex
 
 # ─── Auth wall ────────────────────────────────────────────────────────────────
 def show_auth_page():
+    # Handle OAuth callback
+    handle_oauth_callback()
+
+    # Back to guest mode
+    if st.session_state.get("guest_cv_data"):
+        if st.button("← Volver al análisis", key="btn_back_to_guest"):
+            for k in ["show_auth","show_login","show_register"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
     st.markdown("""
 <div style="text-align:center;padding:1.5rem 0 0.5rem 0">
   <div style="font-size:2.5rem;margin-bottom:0.3rem">🎯</div>
@@ -416,6 +426,8 @@ def show_auth_page():
                 with st.spinner("Verificando..."):
                     ok, msg = sign_in(email, password)
                 if ok:
+                    for k in ["show_auth","show_login","show_register","guest_cv_data"]:
+                        st.session_state.pop(k, None)
                     st.rerun()
                 else:
                     st.error(msg)
@@ -1969,7 +1981,7 @@ def show_guest_mode():
     _, btn_col = st.columns([4, 1])
     with btn_col:
         if st.button("🔑 Iniciar sesión", use_container_width=True):
-            st.session_state["show_login"] = True
+            st.session_state["show_auth"] = True
             st.rerun()
 
     st.markdown("---")
@@ -2099,11 +2111,11 @@ def _show_guest_results(cv_data):
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("✨ Crear cuenta gratis", use_container_width=True, type="primary"):
-            st.session_state["show_register"] = True
+            st.session_state["show_auth"] = True
             st.rerun()
     with col_b:
         if st.button("🔑 Ya tengo cuenta", use_container_width=True):
-            st.session_state["show_login"] = True
+            st.session_state["show_auth"] = True
             st.rerun()
 
     # No "analyze another" option — one free analysis per session
