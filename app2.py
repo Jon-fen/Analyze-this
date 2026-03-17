@@ -2132,10 +2132,7 @@ if not supabase:
 user = st.session_state.get("user")
 
 if not user:
-    # Show auth page directly if user clicked register/login from guest results
-    if st.session_state.get("show_register") or st.session_state.get("show_login"):
-        st.session_state.pop("show_register", None)
-        st.session_state.pop("show_login", None)
+    if st.session_state.get("show_auth"):
         show_auth_page()
     else:
         show_guest_mode()
