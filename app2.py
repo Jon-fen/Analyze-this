@@ -138,6 +138,101 @@ def sign_in(email: str, password: str) -> tuple[bool, str]:
     except Exception as e:
         return False, "Email o contraseña incorrectos."
 
+def send_magic_link(email: str) -> tuple[bool, str]:
+    try:
+        supabase.auth.sign_in_with_otp({
+            "email": email,
+            "options": {"should_create_user": True,
+                        "email_redirect_to": "https://analyze-this-v2.streamlit.app"}
+        })
+        return True, "✅ Link enviado. Revisa tu email y haz clic para entrar."
+    except Exception as e:
+        return False, f"Error: {e}"
+
+def handle_magic_callback():
+    """Intercept Supabase magic link token from URL — one-time use."""
+    if st.session_state.get("_magic_handled"):
+        return
+    params = dict(st.query_params)
+    # Supabase magic link returns access_token + refresh_token as query params
+    access_token  = params.get("access_token", "")
+    refresh_token = params.get("refresh_token", "")
+    if not access_token:
+        return
+    try:
+        session = supabase.auth.set_session(access_token, refresh_token)
+        if session and session.user:
+            st.session_state["user"]    = session.user
+            st.session_state["session"] = session
+            st.session_state["_magic_handled"] = True
+            # Create profile if first time
+            try:
+                existing = get_profile(session.user.id)
+                if not existing:
+                    supabase.table("profiles").insert({
+                        "id": session.user.id,
+                        "email": session.user.email,
+                        "plan": "free",
+                        "credits_used_this_month": 0,
+                        "credits_reset_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+            except Exception:
+                pass
+            st.query_params.clear()
+            for k in ["show_auth","show_login","show_register","guest_cv_data"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+    except Exception:
+        pass
+
+def handle_google_callback():
+    """Intercept Google OAuth code from URL — processed exactly once."""
+    if st.session_state.get("_google_handled"):
+        return
+    params = dict(st.query_params)
+    code = params.get("code", "")
+    if not code:
+        return
+    try:
+        st.session_state["_google_handled"] = True  # mark BEFORE call to prevent reuse
+        session = supabase.auth.exchange_code_for_session({"auth_code": code})
+        if session and session.user:
+            st.session_state["user"]    = session.user
+            st.session_state["session"] = session
+            try:
+                existing = get_profile(session.user.id)
+                if not existing:
+                    supabase.table("profiles").insert({
+                        "id": session.user.id,
+                        "email": session.user.email,
+                        "plan": "free",
+                        "credits_used_this_month": 0,
+                        "credits_reset_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+            except Exception:
+                pass
+            st.query_params.clear()
+            for k in ["show_auth","show_login","show_register","guest_cv_data"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+    except Exception as e:
+        st.session_state.pop("_google_handled", None)  # allow retry on error
+
+def get_google_oauth_url() -> str:
+    """Get Google OAuth URL directly from Supabase (PKCE flow)."""
+    try:
+        res = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": "https://analyze-this-v2.streamlit.app",
+                "skip_browser_redirect": True,
+                "query_params": {"prompt": "select_account"}
+            }
+        })
+        return res.url if hasattr(res, "url") and res.url else ""
+    except Exception:
+        return ""
+
 def sign_out():
     try:
         supabase.auth.sign_out()
@@ -364,30 +459,24 @@ def show_auth_page():
 </div>
 """, unsafe_allow_html=True)
 
-    # ── Google OAuth button via streamlit-oauth ───────────────────────────
-    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
-        oauth2 = OAuth2Component(
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET,
-            authorize_endpoint=GOOGLE_AUTH_URL,
-            token_endpoint=GOOGLE_TOKEN_URL,
-        )
-        result = oauth2.authorize_button(
-            name="Continuar con Google",
-            icon="https://www.google.com/favicon.ico",
-            redirect_uri="https://analyze-this-v2.streamlit.app",
-            scope=GOOGLE_SCOPE,
-            key="google_oauth",
-            extras_params={"prompt": "select_account", "access_type": "offline"},
-            use_container_width=True,
-        )
-        if result and result.get("token"):
-            with st.spinner("Iniciando sesión con Google..."):
-                handle_google_token(result["token"])
-
-        st.markdown("""<div style="text-align:center;color:#999;
-            font-size:0.8rem;margin:0.3rem 0 0.5rem 0">— o usa tu email —</div>""",
-            unsafe_allow_html=True)
+    # ── Google OAuth via Supabase redirect + one-time code handler ──────
+    google_url = get_google_oauth_url()
+    if google_url:
+        st.markdown(f"""
+<a href="{google_url}" target="_self" style="display:flex;align-items:center;
+   justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.05);
+   border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:0.65rem 1rem;
+   text-decoration:none;color:#ccc;font-size:0.9rem;font-weight:500;margin-bottom:0.6rem">
+  <svg width="16" height="16" viewBox="0 0 48 48">
+    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/>
+    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+    <path fill="#FBBC05" d="M10.5 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.1.7-4.6L2.3 13.3A23.8 23.8 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8-6z"/>
+    <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-3.7-13.5-9l-8 6.1C6.6 42.6 14.6 48 24 48z"/>
+  </svg>
+  Continuar con Google
+</a>
+<div style="text-align:center;color:#555;font-size:0.75rem;margin-bottom:0.5rem">— o usa email —</div>
+""", unsafe_allow_html=True)
 
     # Value prop — why register
     st.markdown("""
@@ -411,7 +500,7 @@ def show_auth_page():
 """, unsafe_allow_html=True)
 
     st.markdown("---")
-    tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "📝 Crear cuenta"])
+    tab_login, tab_magic, tab_signup = st.tabs(["🔑 Con contraseña", "✉️ Magic Link", "📝 Crear cuenta"])
 
     with tab_login:
         email = st.text_input("Email", key="login_email")
@@ -442,6 +531,21 @@ def show_auth_page():
                         st.success(msg)
                     else:
                         st.error(msg)
+
+    with tab_magic:
+        st.caption("Te enviamos un link a tu email — haz clic y entras directo, sin contraseña.")
+        magic_email = st.text_input("Tu email", key="magic_email")
+        if st.button("📩 Enviar link mágico", use_container_width=True, key="btn_magic"):
+            if not magic_email:
+                st.error("Ingresa tu email.")
+            else:
+                with st.spinner("Enviando..."):
+                    ok, msg = send_magic_link(magic_email)
+                if ok:
+                    st.success(msg)
+                    st.info("💡 El link expira en 1 hora. Si no llega, revisa spam.")
+                else:
+                    st.error(msg)
 
     with tab_signup:
         st.markdown("""
