@@ -375,7 +375,7 @@ def show_auth_page():
         result = oauth2.authorize_button(
             name="Continuar con Google",
             icon="https://www.google.com/favicon.ico",
-            redirect_uri="https://analyze-this-v2.streamlit.app/",
+            redirect_uri="https://analyze-this-v2.streamlit.app",
             scope=GOOGLE_SCOPE,
             key="google_oauth",
             extras_params={"prompt": "select_account", "access_type": "offline"},
