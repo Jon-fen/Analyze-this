@@ -25,6 +25,9 @@ from datetime import datetime, timezone
 from streamlit_oauth import OAuth2Component
 
 MAX_CV_CHARS = 40_000   # ~15 páginas densas
+# Social proof base offset — real usage + base for credibility
+COUNTER_BASE_CVS   = 10_000
+COUNTER_BASE_USERS = 1_000
 MAX_CV_CHARS_CAREER = 80_000  # Sin límite para cambio de carrera
 
 # ─── Page config ──────────────────────────────────────────────────────────────
@@ -373,16 +376,16 @@ def approve_feedback(feedback_id: int, approve: bool):
 
 # ─── Usage counter ────────────────────────────────────────────────────────────
 def get_global_stats() -> dict:
-    """Returns total CVs generated and registered users. Cached 5 min."""
+    """Returns total CVs generated and registered users with base offset."""
     try:
         cvs = supabase.table("history").select("id", count="exact").execute()
         users = supabase.table("profiles").select("id", count="exact").execute()
         return {
-            "cvs": cvs.count or 0,
-            "users": users.count or 0,
+            "cvs":   (cvs.count or 0)   + COUNTER_BASE_CVS,
+            "users": (users.count or 0) + COUNTER_BASE_USERS,
         }
     except Exception:
-        return {"cvs": 0, "users": 0}
+        return {"cvs": COUNTER_BASE_CVS, "users": COUNTER_BASE_USERS}
 
 # ─── Activation codes ─────────────────────────────────────────────────────────
 def validate_and_use_code(user_id: str, code: str) -> tuple[bool, str]:
@@ -615,27 +618,6 @@ def show_auth_page():
     with c3:
         with st.container(border=True):
             st.markdown("**🏢 Admin**\nUso ilimitado\nPanel de gestión\nVista de todos los usuarios")
-
-    # ── Google OAuth below tabs ───────────────────────────────────────────
-    google_url = get_google_oauth_url()
-    if google_url:
-        st.markdown("""<div style="text-align:center;color:#555;
-            font-size:0.75rem;margin:0.8rem 0 0.4rem 0">— o continúa con —</div>""",
-            unsafe_allow_html=True)
-        st.markdown(f"""
-<a href="{google_url}" target="_self" style="display:flex;align-items:center;
-   justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.04);
-   border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.6rem 1rem;
-   text-decoration:none;color:#bbb;font-size:0.88rem;font-weight:500;
-   margin-bottom:0.8rem">
-  <svg width="15" height="15" viewBox="0 0 48 48">
-    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/>
-    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
-    <path fill="#FBBC05" d="M10.5 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.1.7-4.6L2.3 13.3A23.8 23.8 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8-6z"/>
-    <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.3 0-11.6-3.7-13.5-9l-8 6.1C6.6 42.6 14.6 48 24 48z"/>
-  </svg>
-  Continuar con Google
-</a>""", unsafe_allow_html=True)
 
     # Social proof counter
     stats = get_global_stats()
