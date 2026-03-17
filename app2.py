@@ -1911,6 +1911,198 @@ def show_main_app(user, profile):
     st.markdown("---")
     st.caption("CV Optimizer ATS · Powered by Claude AI · Anthropic")
 
+# ─── Guest mode (no login) ────────────────────────────────────────────────────
+def show_guest_mode():
+    """Let visitor run one full analysis before asking to register."""
+
+    st.markdown(f"""
+<div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
+  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS
+    <span style="font-size:0.65rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;
+      border-radius:20px;font-weight:600;vertical-align:middle;letter-spacing:0.05em">BETA</span>
+  </h1>
+  <p style="color:#888;margin:0.2rem 0 0 0;font-size:0.88rem">
+    Sube tu CV, pega la oferta — ve al instante si eres un buen candidato.
+  </p>
+</div>""", unsafe_allow_html=True)
+
+    # Show value props
+    st.markdown("""
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.7rem;margin-bottom:1.2rem">
+  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
+      border-radius:10px;padding:0.8rem;text-align:center">
+    <div style="font-size:1.4rem">🎯</div>
+    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Score ATS real</div>
+    <div style="font-size:0.7rem;color:#888">% match con la oferta</div>
+  </div>
+  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
+      border-radius:10px;padding:0.8rem;text-align:center">
+    <div style="font-size:1.4rem">🔑</div>
+    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Keywords exactas</div>
+    <div style="font-size:0.7rem;color:#888">las que el ATS busca</div>
+  </div>
+  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
+      border-radius:10px;padding:0.8rem;text-align:center">
+    <div style="font-size:1.4rem">📄</div>
+    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">CV listo</div>
+    <div style="font-size:0.7rem;color:#888">descarga con cuenta gratis</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── Inputs ─────────────────────────────────────────────────────────────
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📄 Tu CV")
+        st.caption("💡 Sube tu CV completo — se analizarán hasta ~15 páginas.")
+        cv_file = st.file_uploader("Sube tu CV", type=["pdf","docx"], label_visibility="collapsed")
+        cv_text_manual = st.text_area("O pega el texto aquí", height=150,
+            placeholder="Pega el contenido de tu CV si no tienes archivo...")
+    with col2:
+        st.subheader("💼 Oferta Laboral")
+        job_url = st.text_input("🔗 Link de la oferta",
+            placeholder="https://www.linkedin.com/jobs/...")
+        job_description = st.text_area("O pega el texto aquí", height=215,
+            placeholder="Pega aquí el texto de la oferta...")
+
+    st.markdown("---")
+
+    # If guest already ran analysis, show results with gate
+    if st.session_state.get("guest_cv_data"):
+        _show_guest_results(st.session_state["guest_cv_data"])
+        return
+
+    if st.button("🔍 Analizar compatibilidad", use_container_width=True, type="primary"):
+        # Resolve job
+        final_job = job_description.strip()
+        url_key = job_url.strip()
+        if url_key and is_valid_url(url_key):
+            cached = st.session_state.get("_cached_job_url","")
+            if url_key == cached:
+                final_job = st.session_state.get("_cached_job_text","") or final_job
+            else:
+                with st.spinner("🔍 Leyendo oferta..."):
+                    try:
+                        scraped = scrape_job_url(url_key)
+                        if scraped:
+                            final_job = scraped
+                            st.session_state["_cached_job_url"] = url_key
+                            st.session_state["_cached_job_text"] = scraped
+                    except Exception: pass
+
+        if not final_job:
+            st.error("⚠️ Pega la oferta o ingresa un link válido."); st.stop()
+
+        cv_text = ""
+        if cv_file:
+            with st.spinner("📄 Extrayendo CV..."):
+                try:
+                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf")                               else extract_docx(cv_file)
+                except Exception as e:
+                    st.error(f"Error: {e}"); st.stop()
+        if cv_text_manual.strip():
+            cv_text = cv_text_manual.strip() if not cv_text else cv_text + "\n" + cv_text_manual.strip()
+        if not cv_text:
+            st.error("⚠️ Sube tu CV o pega el texto."); st.stop()
+
+        prog = st.progress(0, text="📄 Preparando análisis...")
+        prog.progress(20, text="🔍 Leyendo tu CV...")
+        prog.progress(40, text="🤖 Analizando compatibilidad con la oferta...")
+        try:
+            cv_data = optimize_cv(cv_text, final_job, 1, 10, False)
+            prog.progress(100, text="✅ ¡Análisis listo!")
+            time.sleep(0.4); prog.empty()
+            st.session_state["guest_cv_data"] = cv_data
+            st.rerun()
+        except Exception as e:
+            prog.empty()
+            st.error(f"Error: {e}"); st.stop()
+
+    st.markdown("---")
+    st.caption("CV Optimizer ATS · analyze-this-v2.streamlit.app")
+
+
+def _show_guest_results(cv_data):
+    """Show full analysis but gate the download."""
+    st.markdown("---")
+    st.subheader("📊 Análisis de Compatibilidad")
+
+    ats_detected = cv_data.get("ats_detectado", "")
+    ats_ok  = cv_data.get("ats_compatible", True)
+    ats_msg = cv_data.get("ats_razon", "")
+    score   = cv_data.get("score_match", 0)
+    sc_col  = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+
+    bc, sc = st.columns([1,2])
+    with bc:
+        if ats_ok: st.success("✅ ATS Compatible")
+        else: st.error("❌ No ATS Compatible")
+        if ats_detected: st.caption(f"🎯 ATS detectado: **{ats_detected}**")
+        if ats_msg: st.caption(ats_msg)
+    with sc:
+        st.metric(f"{sc_col} Match con la oferta", f"{score}%")
+        explain = cv_data.get("score_explicacion","")
+        if explain: st.markdown(f'<div class="score-explain">{explain}</div>', unsafe_allow_html=True)
+
+    desglose = cv_data.get("score_desglose",{})
+    if desglose:
+        with st.expander("📈 Ver desglose"):
+            d1,d2,d3,d4=st.columns(4)
+            d1.metric("Keywords",    f"{desglose.get('keywords','-')}%")
+            d2.metric("Experiencia", f"{desglose.get('experiencia','-')}%")
+            d3.metric("Educación",   f"{desglose.get('educacion','-')}%")
+            d4.metric("Habilidades", f"{desglose.get('habilidades','-')}%")
+
+    st.markdown("---")
+    k1,k2 = st.columns(2)
+    with k1:
+        kw_ok = cv_data.get("keywords_integradas",[])
+        if kw_ok: st.success(f"✅ **Keywords integradas ({len(kw_ok)}):**\n"+", ".join(kw_ok))
+    with k2:
+        kw_miss = cv_data.get("keywords_faltantes",[])
+        if kw_miss: st.warning(f"⚠️ **Keywords ausentes ({len(kw_miss)}):**\n"+", ".join(kw_miss))
+
+    coaching = cv_data.get("coaching",[])
+    if coaching:
+        st.markdown("---")
+        st.markdown("**🎯 Tu Plan de Acción**")
+        st.caption("Expande cada recomendación:")
+        with st.expander(coaching[0].get("categoria",""), expanded=True):
+            st.markdown(coaching[0].get("tip",""))
+        if len(coaching) > 1:
+            st.caption(f"+ {len(coaching)-1} recomendaciones más — disponibles al registrarte")
+
+    # ── Gate: download requires account ───────────────────────────────────
+    st.markdown("---")
+    st.markdown("""
+<div style="background:linear-gradient(135deg,rgba(27,79,138,0.2),rgba(200,151,58,0.15));
+  border:1.5px solid rgba(200,151,58,0.4);border-radius:14px;padding:1.5rem;text-align:center">
+  <div style="font-size:2rem;margin-bottom:0.5rem">📥</div>
+  <div style="font-size:1.1rem;font-weight:700;color:#E0B060;margin-bottom:0.4rem">
+    Tu CV optimizado está listo para descargar
+  </div>
+  <div style="font-size:0.88rem;color:#aaa;margin-bottom:1rem">
+    Crea tu cuenta gratis (10 segundos) y descarga en 4 templates profesionales.<br>
+    Sin tarjeta de crédito · 5 análisis/mes incluidos
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("✨ Crear cuenta gratis", use_container_width=True, type="primary"):
+            st.session_state["show_register"] = True
+            st.rerun()
+    with col_b:
+        if st.button("🔑 Ya tengo cuenta", use_container_width=True):
+            st.session_state["show_login"] = True
+            st.rerun()
+
+    if st.button("🔄 Analizar otro CV", use_container_width=False):
+        st.session_state.pop("guest_cv_data", None)
+        st.rerun()
+
+
 # ─── Router ───────────────────────────────────────────────────────────────────
 if not supabase:
     st.error("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets de Streamlit.")
@@ -1920,7 +2112,13 @@ if not supabase:
 user = st.session_state.get("user")
 
 if not user:
-    show_auth_page()
+    # Show auth page directly if user clicked register/login from guest results
+    if st.session_state.get("show_register") or st.session_state.get("show_login"):
+        st.session_state.pop("show_register", None)
+        st.session_state.pop("show_login", None)
+        show_auth_page()
+    else:
+        show_guest_mode()
 else:
     profile = get_profile(user.id)
     if not profile:
