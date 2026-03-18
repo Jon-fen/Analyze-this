@@ -76,75 +76,58 @@ st.markdown("""
   #MainMenu, footer, header { visibility: hidden; }
   [data-testid="stToolbar"] { display: none; }
 
-  /* ── Toggles — tarjetas visibles con borde y descripción ── */
-  [data-testid="stToggle"] {
+  /* ── Toggles — tarjetas visibles con borde ── */
+  body [data-testid="stToggle"] {
     background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(46,117,182,0.30) !important;
+    border: 1px solid rgba(46,117,182,0.35) !important;
     border-radius: 12px !important;
     padding: 0.75rem 1rem !important;
     margin-bottom: 0.5rem !important;
-    transition: border-color 0.2s, background 0.2s !important;
   }
-  [data-testid="stToggle"]:hover {
-    background: rgba(46,117,182,0.08) !important;
-    border-color: rgba(46,117,182,0.55) !important;
-  }
-  /* Toggle activo (checked) */
-  [data-testid="stToggle"]:has(input:checked) {
-    background: rgba(46,117,182,0.12) !important;
+  body [data-testid="stToggle"]:hover {
+    background: rgba(46,117,182,0.10) !important;
     border-color: #2E75B6 !important;
   }
-  [data-testid="stToggle"] label {
+  body [data-testid="stToggle"] label,
+  body [data-testid="stToggle"] p {
     font-size: 0.95rem !important;
     font-weight: 500 !important;
     color: #BDD9F2 !important;
-    cursor: pointer !important;
   }
-  [data-testid="stToggle"] [data-testid="stWidgetLabel"] p {
-    font-size: 0.95rem !important;
-    font-weight: 500 !important;
-  }
-  /* El switch en sí — más grande ── */
-  [data-testid="stToggle"] [role="switch"] {
+  body [data-testid="stToggle"] [role="switch"] {
     width: 44px !important;
     height: 24px !important;
+    min-width: 44px !important;
   }
 
   /* ── Expanders (coaching) — más limpios ── */
-  [data-testid="stExpander"] {
-    border: 1px solid rgba(46,117,182,0.20) !important;
+  body [data-testid="stExpander"] {
+    border: 1px solid rgba(46,117,182,0.25) !important;
     border-radius: 10px !important;
-    margin-bottom: 0.4rem !important;
-    background: rgba(255,255,255,0.02) !important;
+    margin-bottom: 0.5rem !important;
     overflow: hidden !important;
   }
-  [data-testid="stExpander"]:hover {
-    border-color: rgba(46,117,182,0.45) !important;
+  body [data-testid="stExpander"]:hover {
+    border-color: rgba(46,117,182,0.5) !important;
   }
-  [data-testid="stExpander"] summary {
+  body [data-testid="stExpander"] summary {
     font-size: 0.95rem !important;
     font-weight: 500 !important;
     color: #C8D8E8 !important;
     padding: 0.7rem 1rem !important;
   }
-  [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
-    padding: 0 1rem 0.8rem 1rem !important;
+  body [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+    padding: 0 1rem 0.9rem 1rem !important;
     font-size: 0.9rem !important;
     color: #9EB0C0 !important;
     line-height: 1.65 !important;
   }
-  /* Primera tarjeta (fortaleza) — acento verde sutil */
-  [data-testid="stExpander"]:nth-of-type(1) {
-    border-left: 3px solid #2E9E6A !important;
-  }
-  /* Segunda (brecha) — acento naranja */
-  [data-testid="stExpander"]:nth-of-type(2) {
-    border-left: 3px solid #C8973A !important;
-  }
-  /* Tercera (quick win) — acento azul */
-  [data-testid="stExpander"]:nth-of-type(3) {
-    border-left: 3px solid #2E75B6 !important;
-  }
+  /* Acento color izquierdo por posición */
+  body [data-testid="stExpander"]:nth-of-type(1) { border-left: 3px solid #2E9E6A !important; }
+  body [data-testid="stExpander"]:nth-of-type(2) { border-left: 3px solid #C8973A !important; }
+  body [data-testid="stExpander"]:nth-of-type(3) { border-left: 3px solid #2E75B6 !important; }
+  body [data-testid="stExpander"]:nth-of-type(4) { border-left: 3px solid #9B59B6 !important; }
+  body [data-testid="stExpander"]:nth-of-type(5) { border-left: 3px solid #5DADE2 !important; }
 
   /* ── Keyword chips — reemplaza los st.success/warning planos ── */
   .kw-chip-ok {
