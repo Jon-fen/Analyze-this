@@ -31,7 +31,7 @@ COUNTER_BASE_USERS = 1_000
 MAX_CV_CHARS_CAREER = 80_000  # Sin límite para cambio de carrera
 
 # ─── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="centered")
+st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -75,6 +75,24 @@ st.markdown("""
   /* ── Hide Streamlit branding ── */
   #MainMenu, footer, header { visibility: hidden; }
   [data-testid="stToolbar"] { display: none; }
+
+  /* ── Bigger, more visible toggles ── */
+  [data-testid="stToggle"] {
+    background: rgba(46,117,182,0.08) !important;
+    border: 1px solid rgba(46,117,182,0.25) !important;
+    border-radius: 10px !important;
+    padding: 0.5rem 0.8rem !important;
+    margin-bottom: 0.3rem !important;
+  }
+  [data-testid="stToggle"] label {
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    color: #BDD9F2 !important;
+  }
+  [data-testid="stToggle"] [data-testid="stWidgetLabel"] p {
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+  }
 
   /* ── Prevent flash/fadeoff on widget interaction ── */
   .stApp { transition: none !important; }
