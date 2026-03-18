@@ -44,13 +44,13 @@ st.markdown("""
     font-size: 1rem; padding: 0.6rem 1.5rem;
     border-radius: 6px; width: 100%; }
 
-  /* ── Coaching cards ── */
-  .coach-card { background: #1E2A3A; border-left: 4px solid #2E75B6;
-                padding: 0.75rem 1rem; border-radius: 4px;
-                margin-bottom: 0.5rem; font-size: 0.95rem; color: #E8EEF4; }
-  .score-explain { background: #1A1F2B; border-radius: 8px;
+  /* ── Score explain box ── */
+  .score-explain { background: #1A1F2B; border-radius: 10px;
                    padding: 0.75rem 1rem; font-size: 0.9rem;
-                   color: #BCC8D4; margin-top: 0.5rem; }
+                   color: #BCC8D4; margin-top: 0.5rem;
+                   border: 1px solid rgba(46,117,182,0.15); }
+
+  /* ── Truncation warning ── */
   .warn-truncate { background: #2A2310; border-left: 3px solid #C8973A;
                    padding: 0.5rem 0.8rem; border-radius: 4px;
                    font-size: 0.85rem; color: #C8B88A; margin-bottom: 0.5rem; }
@@ -76,22 +76,116 @@ st.markdown("""
   #MainMenu, footer, header { visibility: hidden; }
   [data-testid="stToolbar"] { display: none; }
 
-  /* ── Bigger, more visible toggles ── */
+  /* ── Toggles — tarjetas visibles con borde y descripción ── */
   [data-testid="stToggle"] {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(46,117,182,0.30) !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 1rem !important;
+    margin-bottom: 0.5rem !important;
+    transition: border-color 0.2s, background 0.2s !important;
+  }
+  [data-testid="stToggle"]:hover {
     background: rgba(46,117,182,0.08) !important;
-    border: 1px solid rgba(46,117,182,0.25) !important;
-    border-radius: 10px !important;
-    padding: 0.5rem 0.8rem !important;
-    margin-bottom: 0.3rem !important;
+    border-color: rgba(46,117,182,0.55) !important;
+  }
+  /* Toggle activo (checked) */
+  [data-testid="stToggle"]:has(input:checked) {
+    background: rgba(46,117,182,0.12) !important;
+    border-color: #2E75B6 !important;
   }
   [data-testid="stToggle"] label {
     font-size: 0.95rem !important;
     font-weight: 500 !important;
     color: #BDD9F2 !important;
+    cursor: pointer !important;
   }
   [data-testid="stToggle"] [data-testid="stWidgetLabel"] p {
     font-size: 0.95rem !important;
     font-weight: 500 !important;
+  }
+  /* El switch en sí — más grande ── */
+  [data-testid="stToggle"] [role="switch"] {
+    width: 44px !important;
+    height: 24px !important;
+  }
+
+  /* ── Expanders (coaching) — más limpios ── */
+  [data-testid="stExpander"] {
+    border: 1px solid rgba(46,117,182,0.20) !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.4rem !important;
+    background: rgba(255,255,255,0.02) !important;
+    overflow: hidden !important;
+  }
+  [data-testid="stExpander"]:hover {
+    border-color: rgba(46,117,182,0.45) !important;
+  }
+  [data-testid="stExpander"] summary {
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    color: #C8D8E8 !important;
+    padding: 0.7rem 1rem !important;
+  }
+  [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+    padding: 0 1rem 0.8rem 1rem !important;
+    font-size: 0.9rem !important;
+    color: #9EB0C0 !important;
+    line-height: 1.65 !important;
+  }
+  /* Primera tarjeta (fortaleza) — acento verde sutil */
+  [data-testid="stExpander"]:nth-of-type(1) {
+    border-left: 3px solid #2E9E6A !important;
+  }
+  /* Segunda (brecha) — acento naranja */
+  [data-testid="stExpander"]:nth-of-type(2) {
+    border-left: 3px solid #C8973A !important;
+  }
+  /* Tercera (quick win) — acento azul */
+  [data-testid="stExpander"]:nth-of-type(3) {
+    border-left: 3px solid #2E75B6 !important;
+  }
+
+  /* ── Keyword chips — reemplaza los st.success/warning planos ── */
+  .kw-chip-ok {
+    display: inline-block; padding: 3px 10px; margin: 2px 3px;
+    background: rgba(46,158,106,0.15); color: #5EC98A;
+    border: 1px solid rgba(46,158,106,0.35); border-radius: 14px;
+    font-size: 0.8rem; font-weight: 500;
+  }
+  .kw-chip-miss {
+    display: inline-block; padding: 3px 10px; margin: 2px 3px;
+    background: rgba(200,151,58,0.15); color: #E0A850;
+    border: 1px solid rgba(200,151,58,0.35); border-radius: 14px;
+    font-size: 0.8rem; font-weight: 500;
+  }
+  .kw-section { margin-bottom: 0.6rem; }
+  .kw-label { font-size: 0.8rem; font-weight: 600;
+              margin-bottom: 0.35rem; display: block; }
+  .kw-label-ok   { color: #5EC98A; }
+  .kw-label-miss { color: #E0A850; }
+
+  /* ── ATS badge con punto pulsante ── */
+  .ats-ok-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border-radius: 20px;
+    background: rgba(46,158,106,0.12);
+    border: 1px solid rgba(46,158,106,0.35);
+    font-size: 0.85rem; font-weight: 500; color: #5EC98A;
+  }
+  .ats-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #5EC98A; position: relative; flex-shrink: 0;
+  }
+  .ats-dot::before {
+    content: ''; position: absolute; inset: -3px; border-radius: 50%;
+    border: 1.5px solid #5EC98A;
+    animation: ats-pulse 2s ease-out infinite;
+  }
+  @keyframes ats-pulse {
+    0%   { transform: scale(1); opacity: 0.7; }
+    70%  { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
   }
 
   /* ── Prevent flash/fadeoff on widget interaction ── */
@@ -107,10 +201,10 @@ st.markdown("""
     display: flex !important; opacity: 1 !important;
   }
 
-  /* ── Pulse animation ── */
+  /* ── Pulse animation (scroll hint) ── */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+    50%       { opacity: 1; }
   }
 </style>
 """, unsafe_allow_html=True)
@@ -862,7 +956,7 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
   "keywords_faltantes": ["kw ausente"],
   "coaching": [
     {{"categoria": "Tu fortaleza clave 💪", "tip": "Qué tiene el candidato valioso y cómo destacarlo."}},
-    {{"categoria": "Brecha crítica 🎯", "tip": "Skill que falta y cómo cerrarla con curso/cert específica."}},
+    {{"categoria": "Brecha crítica ⚠️", "tip": "Skill que falta y cómo cerrarla con curso/cert específica."}},
     {{"categoria": "Quick win de hoy ⚡", "tip": "Acción concreta en menos de 1 hora para mejorar candidatura."}},
     {{"categoria": "LinkedIn / Marca personal 🔗", "tip": "Qué cambiar en LinkedIn para este rol."}},
     {{"categoria": "Antes de la entrevista 📋", "tip": "Qué investigar y qué narrativa preparar."}}
@@ -1522,17 +1616,20 @@ def show_results(cv_data, fn, fs, max_pages):
             d3.metric("Educación",   f"{desglose.get('educacion','-')}%")
             d4.metric("Habilidades", f"{desglose.get('habilidades','-')}%")
     st.markdown("---")
-    k1,k2=st.columns(2)
-    with k1:
-        kw_ok=cv_data.get("keywords_integradas",[])
-        if kw_ok: st.success(f"✅ **Keywords integradas ({len(kw_ok)}):**\n"+", ".join(kw_ok))
-    with k2:
-        kw_miss=cv_data.get("keywords_faltantes",[])
-        if kw_miss: st.warning(f"⚠️ **Keywords ausentes ({len(kw_miss)}):**\n"+", ".join(kw_miss))
+    kw_ok   = cv_data.get("keywords_integradas", [])
+    kw_miss = cv_data.get("keywords_faltantes", [])
+    if kw_ok or kw_miss:
+        chips_ok   = "".join(f'<span class="kw-chip-ok">{k}</span>'   for k in kw_ok)
+        chips_miss = "".join(f'<span class="kw-chip-miss">{k}</span>' for k in kw_miss)
+        st.markdown(f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.5rem">
+  {"" if not kw_ok else f'<div class="kw-section"><span class="kw-label kw-label-ok">✓ Integradas ({len(kw_ok)})</span>{chips_ok}</div>'}
+  {"" if not kw_miss else f'<div class="kw-section"><span class="kw-label kw-label-miss">⚠ Ausentes ({len(kw_miss)})</span>{chips_miss}</div>'}
+</div>""", unsafe_allow_html=True)
     coaching=cv_data.get("coaching",[])
     if coaching:
         st.markdown("---")
-        st.markdown("**🎯 Tu Plan de Acción**")
+        st.markdown("**Tu plan de acción**")
         st.caption("Recomendaciones para esta postulación — expande cada una:")
         for i, tip in enumerate(coaching):
             cat = tip.get("categoria","")
