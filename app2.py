@@ -80,6 +80,15 @@ st.markdown("""
   .stApp { transition: none !important; }
   [data-testid="stAppViewContainer"] { transition: none !important; }
 
+  /* ── Always show sidebar collapse button ── */
+  [data-testid="collapsedControl"] { display: flex !important; }
+  section[data-testid="stSidebar"][aria-expanded="false"] {
+    min-width: 0 !important; width: 0 !important;
+  }
+  section[data-testid="stSidebar"][aria-expanded="false"] + div [data-testid="collapsedControl"] {
+    display: flex !important; opacity: 1 !important;
+  }
+
   /* ── Pulse animation ── */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
@@ -136,10 +145,33 @@ def sign_in(email: str, password: str) -> tuple[bool, str]:
         if res.user:
             st.session_state["user"] = res.user
             st.session_state["session"] = res.session
+            if res.session:
+                st.session_state["_access_token"]  = res.session.access_token
+                st.session_state["_refresh_token"] = res.session.refresh_token
             return True, ""
         return False, "Credenciales incorrectas."
     except Exception as e:
         return False, "Email o contraseña incorrectos."
+
+def restore_session():
+    """Restore session from stored tokens — keeps user logged in across reruns."""
+    if st.session_state.get("user"):
+        return
+    access  = st.session_state.get("_access_token", "")
+    refresh = st.session_state.get("_refresh_token", "")
+    if not access:
+        return
+    try:
+        session = supabase.auth.set_session(access, refresh)
+        if session and session.user:
+            st.session_state["user"]    = session.user
+            st.session_state["session"] = session
+            if session.session:
+                st.session_state["_access_token"]  = session.session.access_token
+                st.session_state["_refresh_token"] = session.session.refresh_token
+    except Exception:
+        st.session_state.pop("_access_token", None)
+        st.session_state.pop("_refresh_token", None)
 
 def send_magic_link(email: str) -> tuple[bool, str]:
     try:
@@ -168,6 +200,9 @@ def handle_magic_callback():
             st.session_state["user"]    = session.user
             st.session_state["session"] = session
             st.session_state["_magic_handled"] = True
+            if session.session:
+                st.session_state["_access_token"]  = session.session.access_token
+                st.session_state["_refresh_token"] = session.session.refresh_token
             # Create profile if first time
             try:
                 existing = get_profile(session.user.id)
@@ -376,12 +411,14 @@ def approve_feedback(feedback_id: int, approve: bool):
 
 # ─── Usage counter ────────────────────────────────────────────────────────────
 def get_global_stats() -> dict:
-    """Returns total CVs generated and registered users with base offset."""
+    """Returns total CVs generated (logged + guest) and registered users."""
     try:
-        cvs = supabase.table("history").select("id", count="exact").execute()
+        cvs   = supabase.table("history").select("id", count="exact").execute()
+        guest = supabase.table("guest_analyses").select("id", count="exact").execute()
         users = supabase.table("profiles").select("id", count="exact").execute()
+        total_cvs = (cvs.count or 0) + (guest.count or 0)
         return {
-            "cvs":   (cvs.count or 0)   + COUNTER_BASE_CVS,
+            "cvs":   total_cvs + COUNTER_BASE_CVS,
             "users": (users.count or 0) + COUNTER_BASE_USERS,
         }
     except Exception:
@@ -736,7 +773,7 @@ def extract_docx(file) -> str:
     return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
 # ─── Claude optimization ──────────────────────────────────────────────────────
-def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_change: bool = False) -> dict:
+def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_change: bool = False, cv_only: bool = False) -> dict:
     api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
     limit = MAX_CV_CHARS_CAREER if career_change else MAX_CV_CHARS
     was_truncated = len(cv_text) > limit
@@ -747,7 +784,7 @@ def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_c
 
     prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
 
-{"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica."}
+{"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else ("MODO ANÁLISIS GENERAL — no hay oferta específica. Analiza el CV: claridad ATS, modernidad, redacción de logros, estructura. Da recomendaciones concretas de mejora." if cv_only else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica.")}
 
 REGLA ABSOLUTA — CERO INVENCIÓN:
 - Cada skill, herramienta, cargo, certificación y logro DEBE existir en el CV original
@@ -1883,11 +1920,20 @@ def show_main_app(user, profile):
         if cv_file and cv_text_manual.strip():
             st.caption("ℹ️ Se usarán tanto el archivo como el texto pegado — el texto se agrega al final del CV.")
     with col2:
-        st.subheader("💼 Oferta Laboral")
-        job_url = st.text_input("🔗 Link de la oferta",
-            placeholder="https://www.linkedin.com/jobs/...")
-        job_description = st.text_area("O pega el texto aquí", height=215,
-            placeholder="Pega aquí el texto de la oferta...")
+        st.subheader("💼 Oferta o Palabras Clave")
+        cv_only_mode = st.toggle("🔍 Solo analizar mi CV (sin oferta)",
+            key="cv_only_mode",
+            help="Analiza tu CV en general: ATS, redacción, modernidad, estructura. Sin comparar con oferta específica.")
+        if cv_only_mode:
+            st.info("Modo análisis general — recibirás consejos de ATS, redacción y estructura.")
+            job_url = ""
+            job_description = st.text_area("Área o palabras clave (opcional)", height=100,
+                placeholder="Ej: Marketing Digital, Chile, empresas tech. O deja vacío para análisis general.")
+        else:
+            job_url = st.text_input("🔗 Link de la oferta",
+                placeholder="https://www.linkedin.com/jobs/...")
+            job_description = st.text_area("O pega el texto aquí", height=175,
+                placeholder="Pega el texto de la oferta, o solo palabras clave: 'Gerente proyectos, minería, Excel'")
 
     st.markdown("---")
     # Template is chosen at download time, not before — avoids re-analysis
@@ -1967,7 +2013,8 @@ def show_main_app(user, profile):
         prog.progress(35, text="🤖 Claude está analizando la compatibilidad...")
         try:
             career_change = st.session_state.get("career_change_mode", False)
-            cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change)
+            cv_only = st.session_state.get("cv_only_mode", False)
+            cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change, cv_only)
             prog.progress(80, text="✍️ Generando coaching personalizado...")
             st.session_state["cv_data"] = cv_data
             st.session_state["cv_original_text"] = cv_text[:2000]
@@ -2058,12 +2105,21 @@ def show_guest_mode():
             placeholder="Pega el contenido de tu CV si no tienes archivo...")
     with col2:
         st.subheader("💼 Oferta Laboral")
-        job_url = st.text_input("🔗 Link de la oferta",
-            placeholder="https://www.linkedin.com/jobs/...")
-        job_description = st.text_area("O pega el texto aquí", height=215,
-            placeholder="Pega aquí el texto de la oferta...")
+        guest_cv_only = st.toggle("🔍 Solo analizar mi CV (sin oferta)",
+            key="guest_cv_only_mode",
+            help="Analiza tu CV en general: ATS, redacción, modernidad. Sin comparar con una oferta específica.")
+        if guest_cv_only:
+            st.info("Recibirás análisis general de ATS, redacción y estructura.")
+            job_url = ""
+            job_description = st.text_area("Área o palabras clave (opcional)", height=120,
+                placeholder="Ej: Marketing Digital, Chile, fintech. O deja vacío para análisis general.")
+        else:
+            job_url = st.text_input("🔗 Link de la oferta",
+                placeholder="https://www.linkedin.com/jobs/...")
+            job_description = st.text_area("O pega el texto aquí", height=160,
+                placeholder="Pega el texto completo de la oferta, o solo palabras clave: 'Analista financiero, SAP, Excel, Santiago'")
 
-    # Login button top right
+    # Login button
     _, btn_col = st.columns([4, 1])
     with btn_col:
         if st.button("🔑 Iniciar sesión", use_container_width=True):
@@ -2080,8 +2136,9 @@ def show_guest_mode():
 
     if st.button("🔍 Analizar compatibilidad", use_container_width=True, type="primary"):
         # Resolve job
+        cv_only_guest = st.session_state.get("guest_cv_only_mode", False)
         final_job = job_description.strip()
-        url_key = job_url.strip()
+        url_key = job_url.strip() if not cv_only_guest else ""
         if url_key and is_valid_url(url_key):
             cached = st.session_state.get("_cached_job_url","")
             if url_key == cached:
@@ -2096,14 +2153,17 @@ def show_guest_mode():
                             st.session_state["_cached_job_text"] = scraped
                     except Exception: pass
 
+        if not final_job and not cv_only_guest:
+            st.error("⚠️ Pega la oferta, un link, o activa 'Solo analizar mi CV'."); st.stop()
         if not final_job:
-            st.error("⚠️ Pega la oferta o ingresa un link válido."); st.stop()
+            final_job = "Análisis general del CV — evaluar ATS, redacción, modernidad y estructura."
 
         cv_text = ""
         if cv_file:
             with st.spinner("📄 Extrayendo CV..."):
                 try:
-                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf")                               else extract_docx(cv_file)
+                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf") \
+                              else extract_docx(cv_file)
                 except Exception as e:
                     st.error(f"Error: {e}"); st.stop()
         if cv_text_manual.strip():
@@ -2113,12 +2173,17 @@ def show_guest_mode():
 
         prog = st.progress(0, text="📄 Preparando análisis...")
         prog.progress(20, text="🔍 Leyendo tu CV...")
-        prog.progress(40, text="🤖 Analizando compatibilidad con la oferta...")
+        prog.progress(40, text="🤖 Analizando compatibilidad...")
         try:
-            cv_data = optimize_cv(cv_text, final_job, 1, 10, False)
+            cv_data = optimize_cv(cv_text, final_job, 1, 10, False, cv_only_guest)
             prog.progress(100, text="✅ ¡Análisis listo!")
             time.sleep(0.4); prog.empty()
             st.session_state["guest_cv_data"] = cv_data
+            # Count guest analysis in a lightweight counter table
+            try:
+                supabase.table("guest_analyses").insert({"created_at": datetime.now(timezone.utc).isoformat()}).execute()
+            except Exception:
+                pass
             st.rerun()
         except Exception as e:
             prog.empty()
