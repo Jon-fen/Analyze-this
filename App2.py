@@ -80,6 +80,15 @@ st.markdown("""
   .stApp { transition: none !important; }
   [data-testid="stAppViewContainer"] { transition: none !important; }
 
+  /* ── Always show sidebar collapse button ── */
+  [data-testid="collapsedControl"] { display: flex !important; }
+  section[data-testid="stSidebar"][aria-expanded="false"] {
+    min-width: 0 !important; width: 0 !important;
+  }
+  section[data-testid="stSidebar"][aria-expanded="false"] + div [data-testid="collapsedControl"] {
+    display: flex !important; opacity: 1 !important;
+  }
+
   /* ── Pulse animation ── */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
@@ -2094,12 +2103,21 @@ def show_guest_mode():
             placeholder="Pega el contenido de tu CV si no tienes archivo...")
     with col2:
         st.subheader("💼 Oferta Laboral")
-        job_url = st.text_input("🔗 Link de la oferta",
-            placeholder="https://www.linkedin.com/jobs/...")
-        job_description = st.text_area("O pega el texto aquí", height=215,
-            placeholder="Pega aquí el texto de la oferta...")
+        guest_cv_only = st.toggle("🔍 Solo analizar mi CV (sin oferta)",
+            key="guest_cv_only_mode",
+            help="Analiza tu CV en general: ATS, redacción, modernidad. Sin comparar con una oferta específica.")
+        if guest_cv_only:
+            st.info("Recibirás análisis general de ATS, redacción y estructura.")
+            job_url = ""
+            job_description = st.text_area("Área o palabras clave (opcional)", height=120,
+                placeholder="Ej: Marketing Digital, Chile, fintech. O deja vacío para análisis general.")
+        else:
+            job_url = st.text_input("🔗 Link de la oferta",
+                placeholder="https://www.linkedin.com/jobs/...")
+            job_description = st.text_area("O pega el texto aquí", height=160,
+                placeholder="Pega el texto completo de la oferta, o solo palabras clave: 'Analista financiero, SAP, Excel, Santiago'")
 
-    # Login button top right
+    # Login button
     _, btn_col = st.columns([4, 1])
     with btn_col:
         if st.button("🔑 Iniciar sesión", use_container_width=True):
@@ -2116,8 +2134,9 @@ def show_guest_mode():
 
     if st.button("🔍 Analizar compatibilidad", use_container_width=True, type="primary"):
         # Resolve job
+        cv_only_guest = st.session_state.get("guest_cv_only_mode", False)
         final_job = job_description.strip()
-        url_key = job_url.strip()
+        url_key = job_url.strip() if not cv_only_guest else ""
         if url_key and is_valid_url(url_key):
             cached = st.session_state.get("_cached_job_url","")
             if url_key == cached:
@@ -2132,7 +2151,7 @@ def show_guest_mode():
                             st.session_state["_cached_job_text"] = scraped
                     except Exception: pass
 
-        if not final_job and not st.session_state.get("cv_only_mode"):
+        if not final_job and not cv_only_guest:
             st.error("⚠️ Pega la oferta, un link, o activa 'Solo analizar mi CV'."); st.stop()
         if not final_job:
             final_job = "Análisis general del CV — evaluar ATS, redacción, modernidad y estructura."
@@ -2141,7 +2160,8 @@ def show_guest_mode():
         if cv_file:
             with st.spinner("📄 Extrayendo CV..."):
                 try:
-                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf")                               else extract_docx(cv_file)
+                    cv_text = extract_pdf(cv_file) if cv_file.name.lower().endswith(".pdf") \
+                              else extract_docx(cv_file)
                 except Exception as e:
                     st.error(f"Error: {e}"); st.stop()
         if cv_text_manual.strip():
@@ -2151,9 +2171,9 @@ def show_guest_mode():
 
         prog = st.progress(0, text="📄 Preparando análisis...")
         prog.progress(20, text="🔍 Leyendo tu CV...")
-        prog.progress(40, text="🤖 Analizando compatibilidad con la oferta...")
+        prog.progress(40, text="🤖 Analizando compatibilidad...")
         try:
-            cv_data = optimize_cv(cv_text, final_job, 1, 10, False)
+            cv_data = optimize_cv(cv_text, final_job, 1, 10, False, cv_only_guest)
             prog.progress(100, text="✅ ¡Análisis listo!")
             time.sleep(0.4); prog.empty()
             st.session_state["guest_cv_data"] = cv_data
