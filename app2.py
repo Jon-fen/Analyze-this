@@ -38,6 +38,14 @@ st.markdown("""
   /* ── Layout ── */
   .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 820px; }
 
+  /* ── Safari / dark mode fix ── */
+  :root { color-scheme: dark; }
+  html, body, .stApp, [data-testid="stAppViewContainer"],
+  [data-testid="stMain"], [data-testid="block-container"] {
+    background-color: #0F1117 !important;
+    color: #E8EEF4 !important;
+  }
+
   /* ── Download button ── */
   div[data-testid="stDownloadButton"] button {
     background-color: #1B6CA8; color: white;
@@ -685,7 +693,7 @@ def show_auth_page():
         password2 = st.text_input("Contraseña (mín. 8 caracteres)", type="password", key="signup_pw")
         password3 = st.text_input("Confirmar contraseña", type="password", key="signup_pw2")
         activation_code = st.text_input("🎟️ Código de activación (opcional)",
-            placeholder="Ej: ICI2026 — si tienes uno, te da más análisis",
+            placeholder="Ingresa tu código si tienes uno — te da más análisis",
             key="signup_code")
         if st.button("Crear cuenta", use_container_width=True, key="btn_signup"):
             if not email2 or not password2:
@@ -698,8 +706,8 @@ def show_auth_page():
                 with st.spinner("Creando cuenta..."):
                     ok, msg = sign_up(email2, password2)
                 if ok:
-                    stage_val = career_stage if career_stage != "— Elige una opción —" else None
-                    found_val = how_found if how_found != "— Elige una opción —" else None
+                    stage_val = None
+                    found_val = None
                     if activation_code.strip():
                         import time; time.sleep(1.5)
                         try:
@@ -1567,6 +1575,50 @@ Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para r
         except Exception as e:
             st.error(f"Error generando {labels[tool]}: {e}")
 
+# ─── Analysis PDF export ──────────────────────────────────────────────────────
+def build_analysis_pdf(cv_data: dict) -> io.BytesIO:
+    nombre = cv_data.get("nombre", "Candidato")
+    titulo = cv_data.get("titulo_profesional", "")
+    score  = cv_data.get("score_match", 0)
+    ats_ok = cv_data.get("ats_compatible", True)
+    ats_det= cv_data.get("ats_detectado", "")
+    explain= cv_data.get("score_explicacion", "")
+    desglose = cv_data.get("score_desglose", {})
+    kw_ok  = cv_data.get("keywords_integradas", [])
+    kw_miss= cv_data.get("keywords_faltantes", [])
+    coaching = cv_data.get("coaching", [])
+
+    lines = []
+    lines.append(f"**Candidato: {nombre}**")
+    lines.append(f"Puesto analizado: {titulo}")
+    lines.append("")
+    lines.append(f"**Score de compatibilidad: {score}%**")
+    lines.append(f"ATS compatible: {'Sí' if ats_ok else 'No'}{f'  ·  ATS detectado: {ats_det}' if ats_det else ''}")
+    if explain:
+        lines.append(explain)
+    lines.append("")
+    if desglose:
+        lines.append("**Desglose del score:**")
+        for k, v in desglose.items():
+            lines.append(f"- {k.capitalize()}: {v}%")
+        lines.append("")
+    if kw_ok:
+        lines.append(f"**Keywords integradas ({len(kw_ok)}):**")
+        lines.append("  " + ", ".join(kw_ok))
+        lines.append("")
+    if kw_miss:
+        lines.append(f"**Keywords ausentes ({len(kw_miss)}):**")
+        lines.append("  " + ", ".join(kw_miss))
+        lines.append("")
+    if coaching:
+        lines.append("**Plan de acción:**")
+        lines.append("")
+        for tip in coaching:
+            lines.append(f"**{tip.get('categoria','')}**")
+            lines.append(tip.get("tip", ""))
+            lines.append("")
+    return build_branded_pdf("Análisis de Compatibilidad ATS", "\n".join(lines), nombre)
+
 # ─── Results display ──────────────────────────────────────────────────────────
 def show_results(cv_data, fn, fs, max_pages):
     st.markdown("---")
@@ -1623,6 +1675,20 @@ def show_results(cv_data, fn, fs, max_pages):
     st.subheader("⬇️ Descarga tu CV optimizado")
     st.markdown("Elige el template que prefieras — todos usan el mismo análisis, solo cambia el diseño:")
     nombre = cv_data.get("nombre","cv").replace(" ","_")
+
+    # ── Descarga del análisis completo en PDF ─────────────────────────────
+    try:
+        analysis_pdf = build_analysis_pdf(cv_data)
+        st.download_button(
+            label="📄 Descargar análisis completo (PDF)",
+            data=analysis_pdf,
+            file_name=f"Analisis_ATS_{nombre}.pdf",
+            mime="application/pdf",
+            use_container_width=False,
+            key=f"dl_analysis_{nombre}"
+        )
+    except Exception:
+        pass
 
     dl1, dl2, dl3, dl4 = st.columns(4)
     for col, (tname, builder) in zip([dl1,dl2,dl3,dl4], BUILDERS.items()):
@@ -1917,7 +1983,9 @@ def show_main_app(user, profile):
         st.markdown("---")
         with st.expander("⚙️ Ajustes avanzados"):
             st.caption("Configuración por defecto optimizada para ATS: 1 página, Calibri 10pt.")
-            max_pages   = st.slider("Páginas máximas", 1, 3, 1)
+            max_pages   = st.slider("Páginas máximas", 1, 5, 1)
+            if max_pages > 2:
+                st.caption("⚠️ Más de 2 páginas reduce compatibilidad ATS en muchos sistemas. Úsalo si el rol lo requiere explícitamente.")
             font_family = st.selectbox("Tipografía",
                 ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0,
                 help="Calibri y Arial son las más amigables con ATS.")
@@ -1931,7 +1999,7 @@ def show_main_app(user, profile):
                 st.success(f"Código activo: **{existing_code}**")
             else:
                 code_input = st.text_input("Ingresa tu código", key="activate_code_sidebar",
-                    placeholder="Ej: ICI2026")
+                    placeholder="Ingresa tu código")
                 if st.button("Activar", key="btn_activate_code"):
                     if code_input.strip():
                         ok, msg = validate_and_use_code(user.id, code_input)
@@ -2223,6 +2291,15 @@ def show_guest_mode():
         if st.button("🔑 Iniciar sesión", use_container_width=True):
             st.session_state["show_auth"] = True
             st.rerun()
+
+    st.markdown("""<div style="background:rgba(46,117,182,0.08);border:1px solid rgba(46,117,182,0.25);
+        border-radius:10px;padding:0.7rem 1rem;margin:0.5rem 0;font-size:0.85rem;color:#7AAED4">
+        🔓 <strong style="color:#9DC8E8">Con cuenta gratis obtienes:</strong>
+        descarga en 4 templates DOCX · carta de presentación · prep de entrevista ·
+        optimización LinkedIn · análisis en PDF · hasta 5 usos al mes.
+        <a href="#" onclick="window.parent.postMessage({type:'streamlit:setComponentValue',value:true},'*')"
+           style="color:#6BAED6;text-decoration:underline;margin-left:4px">Registrarse es gratis →</a>
+    </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
 
