@@ -225,14 +225,14 @@ def get_supabase() -> Client:
 supabase = get_supabase()
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
-def sign_up(email: str, password: str) -> tuple[bool, str]:
+def sign_up(email: str, password: str, display_name: str = "") -> tuple[bool, str]:
     try:
         res = supabase.auth.sign_up({"email": email, "password": password})
         if res.user:
-            # Create profile row with free credits
             supabase.table("profiles").insert({
                 "id": res.user.id,
                 "email": email,
+                "display_name": display_name or email.split("@")[0],
                 "plan": "free",
                 "credits_used_this_month": 0,
                 "credits_reset_at": datetime.now(timezone.utc).isoformat()
@@ -468,6 +468,7 @@ def save_cv_copy(user_id: str, history_id: int, cv_original: str, cv_data: dict)
         return False
 
 
+def get_history(user_id: str) -> list:
     try:
         res = (supabase.table("history")
                .select("*")
@@ -642,15 +643,19 @@ def show_auth_page():
     tab_login, tab_magic, tab_signup = st.tabs(["🔑 Con contraseña", "✉️ Magic Link", "📝 Crear cuenta"])
 
     with tab_login:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Contraseña", type="password", key="login_pw")
-        if st.button("Entrar", use_container_width=True, key="btn_login"):
+        with st.form("form_login", clear_on_submit=False):
+            email = st.text_input("Email", key="login_email",
+                value=st.session_state.get("_remembered_email", ""))
+            password = st.text_input("Contraseña", type="password", key="login_pw")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+        if submitted:
             if not email or not password:
                 st.error("Completa email y contraseña.")
             else:
                 with st.spinner("Verificando..."):
                     ok, msg = sign_in(email, password)
                 if ok:
+                    st.session_state["_remembered_email"] = email
                     for k in ["show_auth","show_login","show_register","guest_cv_data"]:
                         st.session_state.pop(k, None)
                     st.rerun()
@@ -704,6 +709,9 @@ def show_auth_page():
 </div>
 """, unsafe_allow_html=True)
         email2 = st.text_input("Email", key="signup_email")
+        display_name = st.text_input("Nombre o apodo (opcional)",
+            placeholder="Como quieres que te llamemos — ej: Rocío, Juan P.",
+            key="signup_display_name")
         password2 = st.text_input("Contraseña (mín. 8 caracteres)", type="password", key="signup_pw")
         password3 = st.text_input("Confirmar contraseña", type="password", key="signup_pw2")
         activation_code = st.text_input("🎟️ Código de activación (opcional)",
@@ -718,7 +726,7 @@ def show_auth_page():
                 st.error("La contraseña debe tener al menos 8 caracteres.")
             else:
                 with st.spinner("Creando cuenta..."):
-                    ok, msg = sign_up(email2, password2)
+                    ok, msg = sign_up(email2, password2, display_name.strip())
                 if ok:
                     stage_val = None
                     found_val = None
@@ -2174,12 +2182,27 @@ def show_main_app(user, profile):
                         if ok: st.success(msg); st.rerun()
                         else: st.error(msg)
         st.markdown("---")
+        with st.expander("👤 Mi nombre"):
+            current_name = profile.get("display_name") or ""
+            new_name = st.text_input("Nombre o apodo", value=current_name,
+                placeholder="Ej: Rocío, Juan P.", key="sidebar_display_name")
+            if st.button("Guardar nombre", key="btn_save_name"):
+                if new_name.strip():
+                    try:
+                        supabase.table("profiles").update({
+                            "display_name": new_name.strip()
+                        }).eq("id", user.id).execute()
+                        st.success("✅ Nombre actualizado")
+                        st.rerun()
+                    except Exception:
+                        st.error("Error al guardar")
+        st.markdown("---")
         if st.button("🚪 Cerrar sesión", use_container_width=True):
             sign_out()
         st.caption("CV Optimizer ATS · Powered by Claude AI")
 
     # ── Header ─────────────────────────────────────────────────────────────
-    nombre_usuario = profile.get('email','').split('@')[0]
+    nombre_usuario = profile.get("display_name") or profile.get("email","").split("@")[0]
     st.markdown(f"""
 <div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
   <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS <span style="font-size:0.65rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;border-radius:20px;font-weight:600;vertical-align:middle;letter-spacing:0.05em">BETA</span></h1>
@@ -2677,6 +2700,11 @@ if not supabase:
     st.error("⚠️ Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_KEY en Secrets de Streamlit.")
     st.info("Mientras tanto, usa **app.py** (versión sin usuarios).")
     st.stop()
+
+# Restore persisted session and handle OAuth/magic link callbacks on every rerun
+handle_magic_callback()
+handle_google_callback()
+restore_session()
 
 user = st.session_state.get("user")
 
