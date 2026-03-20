@@ -453,7 +453,21 @@ def update_outcome(history_id: int, outcome: str):
     except Exception:
         return False
 
-def get_history(user_id: str) -> list:
+def save_cv_copy(user_id: str, history_id: int, cv_original: str, cv_data: dict):
+    """Stores original CV text and generated JSON — opt-in only."""
+    try:
+        supabase.table("cv_storage").insert({
+            "user_id": user_id,
+            "history_id": history_id,
+            "cv_original_snippet": cv_original[:5000],   # first 5k chars
+            "cv_generated": json.dumps(cv_data, ensure_ascii=False)[:20000],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        return True
+    except Exception:
+        return False
+
+
     try:
         res = (supabase.table("history")
                .select("*")
@@ -876,7 +890,7 @@ def extract_docx(file) -> str:
     return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
 # ─── Claude optimization ──────────────────────────────────────────────────────
-def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_change: bool = False, cv_only: bool = False) -> dict:
+def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_change: bool = False, cv_only: bool = False, output_lang: str = "es") -> dict:
     api_key = st.session_state.get("user_api_key") or ANTHROPIC_KEY
     limit = MAX_CV_CHARS_CAREER if career_change else MAX_CV_CHARS
     was_truncated = len(cv_text) > limit
@@ -885,8 +899,11 @@ def optimize_cv(cv_text: str, job_text: str, max_pages: int, font_size, career_c
     words_per_page = {9: 700, 10: 600, 10.5: 560, 11: 520, 12: 460}
     max_words = words_per_page.get(float(font_size), 580) * max_pages
 
-    prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
+    lang_map = {"es": "español", "en": "English", "pt": "português"}
+    lang_instruction = f"\nIDIOMA DE SALIDA: Redacta TODO el CV optimizado (resumen, logros, habilidades, secciones) en {lang_map.get(output_lang, 'español')}. El coaching y análisis también en ese idioma. El CV original y la oferta pueden estar en idiomas distintos — eso no es problema, compara su contenido y genera el output en el idioma solicitado.\n"
 
+    prompt = f"""Eres un experto coach de carrera y especialista en optimización de CVs para sistemas ATS.
+{lang_instruction}
 {"MODO CAMBIO DE CARRERA — incluye experiencia de TODOS los períodos y reenmarca habilidades transferibles hacia el nuevo rol." if career_change else ("MODO ANÁLISIS GENERAL — no hay oferta específica. Analiza el CV: claridad ATS, modernidad, redacción de logros, estructura. Da recomendaciones concretas de mejora." if cv_only else "Selecciona la experiencia MÁS RECIENTE y relevante para esta oferta específica.")}
 
 REGLA ABSOLUTA — CERO INVENCIÓN:
@@ -1400,6 +1417,142 @@ BUILDERS = {
     "Minimalista": build_minimalista,
 }
 
+# ─── CV PDF builder (reportlab) ───────────────────────────────────────────────
+DISCLAIMER_TEXT = (
+    "Este documento fue generado automáticamente por Analyze-This · CV Optimizer ATS "
+    "usando inteligencia artificial (Claude, Anthropic). El contenido se basa "
+    "exclusivamente en la información provista por el usuario — la herramienta reorganiza "
+    "y optimiza, pero no verifica ni valida los datos ingresados. "
+    "El usuario es el único responsable de la exactitud de su CV. "
+    "analyze-this-v2.streamlit.app"
+)
+
+def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
+    """Generate a clean PDF CV using reportlab — same content as DOCX templates."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors as _rc
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                     HRFlowable, KeepTogether)
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    # Color schemes per template
+    schemes = {
+        "Clásico":    {"h": "#2E75B6", "t": "#1A1A2E", "s": "#666666", "acc": "#2E75B6"},
+        "Moderno":    {"h": "#1B4F72", "t": "#1B4F72", "s": "#777777", "acc": "#178ACA"},
+        "Ejecutivo":  {"h": "#1B2A4A", "t": "#1B2A4A", "s": "#555555", "acc": "#8B6C1E"},
+        "Minimalista":{"h": "#222222", "t": "#222222", "s": "#888888", "acc": "#444444"},
+    }
+    sc = schemes.get(template, schemes["Clásico"])
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+        leftMargin=2*cm, rightMargin=2*cm, topMargin=1.8*cm, bottomMargin=2*cm)
+
+    C_H   = _rc.HexColor(sc["h"])
+    C_T   = _rc.HexColor(sc["t"])
+    C_S   = _rc.HexColor(sc["s"])
+    C_ACC = _rc.HexColor(sc["acc"])
+    C_DIS = _rc.HexColor("#AAAAAA")
+
+    fn = "Helvetica"
+
+    def sty(name, **kw):
+        return ParagraphStyle(name, fontName=fn, **kw)
+
+    s_name   = sty("nm",  fontSize=18, fontName="Helvetica-Bold", textColor=C_T,
+                   alignment=TA_CENTER, spaceAfter=3)
+    s_title  = sty("tit", fontSize=11, fontName="Helvetica-Bold", textColor=C_H,
+                   alignment=TA_CENTER, spaceAfter=3)
+    s_contact= sty("con", fontSize=8.5, textColor=C_S,
+                   alignment=TA_CENTER, spaceAfter=6)
+    s_sec    = sty("sec", fontSize=9.5, fontName="Helvetica-Bold", textColor=C_H,
+                   spaceBefore=10, spaceAfter=2)
+    s_body   = sty("bod", fontSize=9, textColor=C_T, leading=14, spaceAfter=2)
+    s_italic = sty("ita", fontSize=8.5, textColor=C_S, leading=13, spaceAfter=1)
+    s_bullet = sty("bul", fontSize=9, textColor=C_T, leading=13,
+                   leftIndent=12, bulletIndent=0, spaceAfter=1)
+    s_disc   = sty("dis", fontSize=7, textColor=C_DIS, leading=10,
+                   alignment=TA_CENTER, spaceBefore=8)
+
+    def hr(color=C_H, thickness=0.8):
+        return HRFlowable(width="100%", thickness=thickness,
+                          color=color, spaceAfter=4)
+
+    story = []
+
+    # Header
+    story.append(Paragraph(cv.get("nombre", ""), s_name))
+    if cv.get("titulo_profesional"):
+        story.append(Paragraph(cv["titulo_profesional"], s_title))
+    parts = [x for x in [cv.get("email"), cv.get("telefono"),
+                          cv.get("ubicacion"), cv.get("linkedin")] if x]
+    if parts:
+        story.append(Paragraph("  |  ".join(parts), s_contact))
+    story.append(hr())
+
+    def section(title):
+        story.append(Paragraph(title.upper(), s_sec))
+        story.append(hr(C_ACC, 0.5))
+
+    if cv.get("resumen_profesional"):
+        section("Resumen profesional")
+        story.append(Paragraph(cv["resumen_profesional"], s_body))
+
+    if cv.get("experiencia"):
+        section("Experiencia profesional")
+        for exp in cv["experiencia"]:
+            block = []
+            block.append(Paragraph(
+                f"<b>{exp.get('cargo','')}</b>  —  {exp.get('empresa','')}",
+                s_body))
+            block.append(Paragraph(exp.get("periodo",""), s_italic))
+            for logro in exp.get("logros", []):
+                safe = logro.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+                block.append(Paragraph(f"• {safe}", s_bullet))
+            story.append(KeepTogether(block))
+            story.append(Spacer(1, 4))
+
+    if cv.get("educacion"):
+        section("Educación")
+        for edu in cv["educacion"]:
+            story.append(Paragraph(
+                f"<b>{edu.get('titulo','')}</b>  —  {edu.get('institucion','')}  "
+                f"({edu.get('periodo','')})", s_body))
+            if edu.get("detalle"):
+                story.append(Paragraph(edu["detalle"], s_italic))
+
+    sk_tec = cv.get("habilidades_tecnicas", [])
+    sk_bla = cv.get("habilidades_blandas", [])
+    if sk_tec or sk_bla:
+        section("Habilidades")
+        if sk_tec:
+            story.append(Paragraph(
+                "<b>Técnicas:</b>  " + "  ·  ".join(sk_tec), s_body))
+        if sk_bla:
+            story.append(Paragraph(
+                "<b>Competencias:</b>  " + "  ·  ".join(sk_bla), s_body))
+
+    if cv.get("idiomas"):
+        section("Idiomas")
+        story.append(Paragraph("  |  ".join(cv["idiomas"]), s_body))
+
+    certs = [c for c in cv.get("certificaciones", []) if c]
+    if certs:
+        section("Certificaciones")
+        for cert in certs:
+            story.append(Paragraph(f"• {cert}", s_bullet))
+
+    # Disclaimer
+    story.append(Spacer(1, 12))
+    story.append(hr(C_DIS, 0.4))
+    story.append(Paragraph(DISCLAIMER_TEXT, s_disc))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf
+
 # ─── Branded PDF builder ──────────────────────────────────────────────────────
 LOGO_PATH = "logo.png"
 _RL_NAVY  = rl_colors.HexColor("#1B4F8A")
@@ -1694,7 +1847,6 @@ def show_results(cv_data, fn, fs, max_pages):
     for col, (tname, builder) in zip([dl1,dl2,dl3,dl4], BUILDERS.items()):
         info = TEMPLATES.get(tname, {})
         with col:
-            # Template card mini
             st.markdown(f"""<div style="text-align:center;padding:0.4rem 0;
                 font-size:0.78rem;color:#888;margin-bottom:0.3rem">
                 <span style="font-size:1.2rem">{info.get('icon','')}</span><br>
@@ -1702,20 +1854,36 @@ def show_results(cv_data, fn, fs, max_pages):
                 <span style="font-size:0.7rem">{info.get('ideal','')[:25]}</span>
                 </div>""", unsafe_allow_html=True)
             try:
-                buf = builder(cv_data, fn, float(fs))
+                docx_buf = builder(cv_data, fn, float(fs))
                 st.download_button(
-                    label=f"⬇️ Descargar",
-                    data=buf,
+                    label="⬇️ DOCX",
+                    data=docx_buf,
                     file_name=f"CV_ATS_{nombre}_{tname}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True,
-                    key=f"dl_{tname}_{nombre}"
+                    key=f"dl_docx_{tname}_{nombre}"
                 )
             except Exception as e:
-                st.error(f"Error {tname}: {e}")
+                st.error(f"DOCX: {e}")
+            try:
+                pdf_buf = build_cv_pdf(cv_data, tname)
+                st.download_button(
+                    label="⬇️ PDF",
+                    data=pdf_buf,
+                    file_name=f"CV_ATS_{nombre}_{tname}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key=f"dl_pdf_{tname}_{nombre}"
+                )
+            except Exception as e:
+                st.error(f"PDF: {e}")
 
     st.success("✅ ¡Tu CV optimizado está listo!")
-    st.caption(f"Tipografía: {fn} · {fs}pt · {max_pages} página(s) · todos los templates usan el mismo análisis")
+    st.caption(f"Tipografía DOCX: {fn} · {fs}pt · {max_pages} página(s)")
+    st.markdown(f"""<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
+        border-radius:8px;padding:0.6rem 0.9rem;margin-top:0.5rem;font-size:0.75rem;color:#666;line-height:1.5">
+        ⚠️ <strong style="color:#888">Aviso:</strong> {DISCLAIMER_TEXT}
+    </div>""", unsafe_allow_html=True)
 
     # ── Feedback inmediato — calidad del CV generado ──────────────────────
     st.markdown("---")
@@ -2029,9 +2197,48 @@ def show_main_app(user, profile):
     if history:
         # Count pending outcomes
         pending = [h for h in history if not h.get("outcome")]
+
+        # ── Banner de feedback pendiente — visible y directo ───────────────
+        if pending and not st.session_state.get("_feedback_banner_dismissed"):
+            most_recent = pending[0]
+            title_pending = most_recent.get("job_title", "tu última postulación")
+            hid_pending   = most_recent.get("id")
+            st.markdown(f"""<div style="background:rgba(200,151,58,0.12);
+                border:1px solid rgba(200,151,58,0.4);border-radius:12px;
+                padding:0.9rem 1.1rem;margin-bottom:1rem">
+                <div style="font-size:0.9rem;font-weight:600;color:#E0B060;margin-bottom:0.4rem">
+                    🔔 ¿Cómo te fue con <em>{title_pending}</em>?
+                </div>
+                <div style="font-size:0.82rem;color:#B89A50;margin-bottom:0.7rem">
+                    Tu feedback nos ayuda a mejorar la herramienta para todos.
+                    Solo toma 5 segundos — ¿obtuviste entrevista o respuesta?
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+            outcome_labels_q = {
+                "got_interview": "🎤 Obtuve entrevista",
+                "got_job":       "🎉 Conseguí el trabajo",
+                "no_response":   "📭 Sin respuesta",
+                "rejected":      "❌ Rechazado",
+            }
+            fb_cols = st.columns(len(outcome_labels_q) + 1)
+            for i, (val, lbl) in enumerate(outcome_labels_q.items()):
+                with fb_cols[i]:
+                    if st.button(lbl, key=f"quick_outcome_{hid_pending}_{val}",
+                                 use_container_width=True):
+                        update_outcome(hid_pending, val)
+                        st.session_state["_feedback_banner_dismissed"] = True
+                        st.toast("¡Gracias por el feedback! 🙏")
+                        st.rerun()
+            with fb_cols[-1]:
+                if st.button("Ahora no", key="dismiss_feedback_banner",
+                             use_container_width=True):
+                    st.session_state["_feedback_banner_dismissed"] = True
+                    st.rerun()
+
         label = f"📜 Historial ({len(history)})"
         if pending:
-            label += f" · 🔔 {len(pending)} pendiente{'s' if len(pending)>1 else ''} de resultado"
+            label += f" · 🔔 {len(pending)} pendiente{'s' if len(pending)>1 else ''}"
         with st.expander(label):
             outcome_labels = {
                 "got_interview": "🎤 Obtuve entrevista",
@@ -2102,7 +2309,19 @@ def show_main_app(user, profile):
                 placeholder="Pega el texto de la oferta, o solo palabras clave: 'Gerente proyectos, minería, Excel'")
 
     st.markdown("---")
-    # Template is chosen at download time, not before — avoids re-analysis
+    output_lang = st.radio(
+        "🌐 Idioma del CV optimizado:",
+        options=["es", "en", "pt"],
+        format_func=lambda x: {"es": "🇨🇱 Español", "en": "🇺🇸 English", "pt": "🇧🇷 Português"}[x],
+        horizontal=True,
+        key="output_lang",
+        help="El CV original y la oferta pueden estar en idiomas distintos — la IA los compara igual y genera el output en el idioma elegido."
+    )
+    save_copy = st.toggle(
+        "💾 Guardar copia de mi CV para análisis posterior",
+        key="save_cv_copy",
+        help="Guarda el texto de tu CV original y el CV generado en tu cuenta. Solo tú puedes verlos. Útil para comparar versiones."
+    )
 
     # ── Regenerate only ────────────────────────────────────────────────────
     if st.session_state.get("regen_docx") and st.session_state.get("cv_data"):
@@ -2180,7 +2399,8 @@ def show_main_app(user, profile):
         try:
             career_change = st.session_state.get("career_change_mode", False)
             cv_only = st.session_state.get("cv_only_mode", False)
-            cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change, cv_only)
+            output_lang = st.session_state.get("output_lang", "es")
+            cv_data = optimize_cv(cv_text, final_job, max_pages, font_size, career_change, cv_only, output_lang)
             prog.progress(80, text="✍️ Generando coaching personalizado...")
             st.session_state["cv_data"] = cv_data
             st.session_state["cv_original_text"] = cv_text[:2000]
@@ -2197,6 +2417,9 @@ def show_main_app(user, profile):
             )
             if history_id:
                 st.session_state["last_history_id"] = history_id
+                if st.session_state.get("save_cv_copy"):
+                    save_cv_copy(user.id, history_id,
+                                 cv_text[:5000], cv_data)
         except json.JSONDecodeError:
             prog.empty()
             st.error("Error procesando respuesta. Intenta nuevamente."); st.stop()
