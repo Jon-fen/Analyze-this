@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% block title %}Analyze-This · Optimiza tu CV con IA para cada oferta{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        Powered by Claude AI · Optimizado para ATS de Latinoamérica
+      </div>
+      <h1 class="hero-title">
+        Tu CV, listo para <span class="highlight">cada oferta</span>
+      </h1>
+      <p class="hero-sub">
+        Sube tu CV. Pega la oferta. En segundos tienes un CV adaptado con las keywords exactas
+        que busca ese ATS — y un plan de acción personalizado para postular con confianza.
+      </p>
+
+      <!-- Social proof — live stats -->
+      <div class="social-proof">
+        <div class="proof-item">
+          <span class="proof-number">{% if stats %}{{ "{:,}".format(stats.cvs) }}{% else %}10,000+{% endif %}</span>
+          <span class="proof-label">CVs optimizados</span>
+        </div>
+        <div class="proof-divider"></div>
+        <div class="proof-item">
+          <span class="proof-number">{% if stats %}{{ "{:,}".format(stats.users) }}{% else %}1,000+{% endif %}</span>
+          <span class="proof-label">profesionales</span>
+        </div>
+        <div class="proof-divider"></div>
+        <div class="proof-item">
+          <span class="proof-number">4</span>
+          <span class="proof-label">templates descargables</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Upload Form ── -->
+    <div class="form-card" id="analyze-form-card">
+
+      {% if error %}
+      <div class="alert alert-error">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#DC2626" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>
+        {{ error }}
+      </div>
+      {% endif %}
+
+      {% if not user %}
+      <div class="alert alert-info">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#2D5BE3" stroke-width="1.5"/><path d="M8 7v4M8 5h.01" stroke="#2D5BE3" stroke-width="1.5" stroke-linecap="round"/></svg>
+        1 análisis gratuito sin registro. <a href="#" onclick="openAuthModal('register'); return false;" style="color:var(--blue);text-decoration:underline">Crea cuenta</a> para guardar historial y descargar todos los templates.
+      </div>
+      {% elif user.credits_remaining == 0 %}
+      <div class="alert alert-error">
+        Alcanzaste el límite de tu plan este mes.
+        <a href="https://ko-fi.com/analyzethis" target="_blank" rel="noopener" style="color:var(--blue)">Apoya en Ko-fi →</a>
+      </div>
+      {% endif %}
+
+      <div class="form-header">
+        <h2 class="form-title">Analizar mi CV</h2>
+        <p class="form-sub">{% if user %}{{ user.credits_remaining }} análisis restantes este mes{% else %}1 análisis gratuito · Sin registro{% endif %}</p>
+      </div>
+
+      <form id="analyze-form" action="/analyze" method="POST" enctype="multipart/form-data">
+
+        <!-- CV Upload -->
+        <div class="field-group">
+          <label class="field-label">Tu CV <span class="field-req">*</span></label>
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" name="cv_file" id="cv-file" accept=".pdf,.docx" class="upload-input">
+            <div class="upload-content" id="upload-content">
+              <div class="upload-icon">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="#1A2744"/>
+                  <path d="M16 10v8M12 14l4-4 4 4" stroke="#2D5BE3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9 22h14" stroke="#2D5BE3" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="upload-text">
+                <span class="upload-main">Arrastra tu CV aquí</span>
+                <span class="upload-or">o <label for="cv-file" class="upload-link">elige un archivo</label></span>
+              </div>
+              <div class="upload-hint">PDF o DOCX · máx. 10 MB</div>
+            </div>
+            <div class="upload-selected hidden" id="upload-selected">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4.5 4.5L16 7" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="upload-filename">archivo.pdf</span>
+              <button type="button" class="upload-remove" onclick="clearFile()">×</button>
+            </div>
+          </div>
+
+          <details class="paste-details">
+            <summary class="paste-toggle">O pega el texto del CV</summary>
+            <textarea name="cv_text_raw" id="cv-text-raw" class="textarea"
+              placeholder="Pega aquí el contenido de tu CV..."
+              rows="6">{% if cv_text_raw %}{{ cv_text_raw }}{% endif %}</textarea>
+          </details>
+        </div>
+
+        <!-- Job Posting -->
+        <div class="field-group">
+          <label class="field-label">Oferta de trabajo</label>
+          <textarea name="job_input" id="job-input" class="textarea"
+            placeholder="Pega el texto de la oferta, o pega la URL del aviso laboral (LinkedIn, Trabajando, etc.)"
+            rows="5"></textarea>
+          <p class="field-hint">Si no tienes oferta, activa "Solo analizar CV" abajo.</p>
+        </div>
+
+        <!-- Options row -->
+        <div class="options-row">
+          <label class="toggle-card" id="toggle-cv-only">
+            <input type="checkbox" name="cv_only" value="true" id="cv-only-check">
+            <div class="toggle-card-inner">
+              <div class="toggle-card-icon">📋</div>
+              <div class="toggle-card-text">
+                <span class="toggle-card-title">Solo analizar CV</span>
+                <span class="toggle-card-sub">Sin oferta específica</span>
+              </div>
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+
+          <label class="toggle-card" id="toggle-career">
+            <input type="checkbox" name="career_change" value="true" id="career-check">
+            <div class="toggle-card-inner">
+              <div class="toggle-card-icon">🔄</div>
+              <div class="toggle-card-text">
+                <span class="toggle-card-title">Cambio de carrera</span>
+                <span class="toggle-card-sub">Incluye toda la trayectoria</span>
+              </div>
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+
+          {% if user %}
+          <label class="toggle-card" id="toggle-save-cv">
+            <input type="checkbox" name="save_cv_copy_toggle" value="true" id="save-cv-check">
+            <div class="toggle-card-inner">
+              <div class="toggle-card-icon">💾</div>
+              <div class="toggle-card-text">
+                <span class="toggle-card-title">Guardar copia</span>
+                <span class="toggle-card-sub">Guarda tu CV en tu cuenta</span>
+              </div>
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+          {% endif %}
+        </div>
+
+        <!-- Advanced options -->
+        <details class="advanced-details">
+          <summary class="advanced-toggle">Opciones avanzadas</summary>
+          <div class="advanced-grid">
+
+            <div class="field-group field-group-sm">
+              <label class="field-label">Páginas máximas</label>
+              <select name="max_pages" class="select" id="max-pages-sel" onchange="checkPages(this.value)">
+                <option value="1">1 página</option>
+                <option value="2" selected>2 páginas (recomendado)</option>
+                <option value="3">3 páginas</option>
+                <option value="4">4 páginas</option>
+                <option value="5">5 páginas</option>
+              </select>
+              <p class="field-hint hidden" id="pages-warn" style="color:var(--amber)">⚠ Más de 2 páginas reduce compatibilidad ATS</p>
+            </div>
+
+            <div class="field-group field-group-sm">
+              <label class="field-label">Tamaño de letra</label>
+              <select name="font_size" class="select">
+                <option value="9">9pt</option>
+                <option value="10">10pt</option>
+                <option value="10.5">10.5pt</option>
+                <option value="11" selected>11pt (recomendado)</option>
+                <option value="12">12pt</option>
+              </select>
+            </div>
+
+            <div class="field-group field-group-sm">
+              <label class="field-label">Fuente del CV</label>
+              <select name="font_family" class="select">
+                <option value="Calibri" selected>Calibri (recomendado)</option>
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Trebuchet MS">Trebuchet MS</option>
+              </select>
+            </div>
+
+            <div class="field-group field-group-sm">
+              <label class="field-label">Idioma del output</label>
+              <select name="output_lang" class="select">
+                <option value="es" selected>Español</option>
+                <option value="en">English</option>
+                <option value="pt">Português</option>
+              </select>
+            </div>
+
+          </div>
+        </details>
+
+        <!-- Submit -->
+        <button type="submit" class="btn btn-primary btn-full btn-lg" id="submit-btn"
+          {% if user and user.credits_remaining == 0 %}disabled{% endif %}>
+          <span class="btn-text">Analizar mi CV con IA</span>
+          <span class="btn-loading hidden">
+            <svg class="spinner" width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="7" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+              <path d="M9 2a7 7 0 0 1 7 7" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Analizando con Claude…
+          </span>
+        </button>
+
+        <p class="submit-note">Gratis · Sin tarjeta · Resultado en ~15 segundos</p>
+
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ── -->
+<section class="section" id="como-funciona">
+  <div class="section-inner">
+    <div class="section-header">
+      <h2 class="section-title">Cómo funciona</h2>
+      <p class="section-sub">En 3 pasos, tu CV optimizado para ese puesto específico</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <div class="step-icon">📄</div>
+        <h3 class="step-title">Sube tu CV</h3>
+        <p class="step-text">PDF o DOCX. La IA extrae toda tu experiencia real — nunca inventa datos.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <div class="step-icon">🎯</div>
+        <h3 class="step-title">Pega la oferta</h3>
+        <p class="step-text">Pega el texto o la URL del aviso. Claude detecta el ATS de esa empresa y adapta el formato.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <div class="step-icon">⬇️</div>
+        <h3 class="step-title">Descarga listo</h3>
+        <p class="step-text">4 templates DOCX y PDF. Score ATS, keywords integradas, coaching personalizado.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ATS trust section ── -->
+<section class="section section-alt">
+  <div class="section-inner">
+    <p class="ats-label">Optimizado para los ATS más usados en Latinoamérica</p>
+    <div class="ats-grid">
+      <div class="ats-badge">Buk</div>
+      <div class="ats-badge">Workday</div>
+      <div class="ats-badge">Greenhouse</div>
+      <div class="ats-badge">Rankmi</div>
+      <div class="ats-badge">Talently</div>
+      <div class="ats-badge">SAP SuccessFactors</div>
+      <div class="ats-badge">Lever</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ATS Comparison ── -->
+<section class="section">
+  <div class="section-inner" style="max-width:860px">
+    <div class="section-header">
+      <h2 class="section-title">¿Qué cambia con Analyze-This?</h2>
+      <p class="section-sub">La diferencia entre ser filtrado y conseguir la entrevista</p>
+    </div>
+    <div class="comparison-table">
+      <div class="comparison-col comparison-col-before">
+        <div class="comparison-col-header">❌ Sin optimizar</div>
+        <ul class="comparison-list">
+          <li>Resumen genérico que no menciona el puesto</li>
+          <li>Keywords del ATS ausentes o mal escritas</li>
+          <li>Formato con tablas/columnas que el ATS no puede leer</li>
+          <li>Bullets de logros sin métricas ni verbos de acción</li>
+          <li>Score ATS: 30–45% → descartado antes de ser leído</li>
+        </ul>
+      </div>
+      <div class="comparison-col comparison-col-after">
+        <div class="comparison-col-header">✅ Con Analyze-This</div>
+        <ul class="comparison-list">
+          <li>Resumen adaptado al puesto específico con las keywords exactas</li>
+          <li>Todas las keywords del ATS integradas naturalmente</li>
+          <li>Formato ATS-friendly, una sola columna, sin tablas</li>
+          <li>Bullets reescritos con logros cuantificados y verbos de impacto</li>
+          <li>Score ATS: 75–90% → tu CV llega a manos del reclutador</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Reviews ── -->
+<section class="section section-alt">
+  <div class="section-inner" style="max-width:900px">
+    <h2 class="section-title">Lo que dicen los profesionales</h2>
+    <div class="reviews-grid">
+      {% if reviews %}
+        {% for rv in reviews %}
+        <div class="review-card">
+          <div class="review-stars">{{ '★' * (rv.rating or 5) }}</div>
+          <p class="review-text">"{{ rv.comment }}"</p>
+          <div class="review-meta">{{ rv.job_title or 'Profesional' }} · {{ (rv.created_at or '')[:7] }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Pasé de 2 rechazos a 3 entrevistas en la misma semana. El score ATS me hizo entender exactamente qué le faltaba a mi CV."</p>
+          <div class="review-meta">Desarrollador Full Stack · Beta tester</div>
+        </div>
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La carta de presentación generada fue mejor que las que yo escribía. Y tardé 30 segundos."</p>
+          <div class="review-meta">Product Manager · Beta tester</div>
+        </div>
+        <div class="review-card">
+          <div class="review-stars">★★★★☆</div>
+          <p class="review-text">"El prep de entrevista con método STAR me salvó. Llegué preparado para responder exactamente lo que me preguntaron."</p>
+          <div class="review-meta">Analista de Datos · Beta tester</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ── Plans ── -->
+<section class="section" id="planes">
+  <div class="section-inner" style="max-width:760px">
+    <h2 class="section-title">Planes</h2>
+    <p class="section-sub">Sin tarjeta de crédito para el plan gratuito</p>
+    <div class="plans-grid">
+      <div class="plan-card">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">Gratis</div>
+        <ul class="plan-features">
+          <li>✓ 5 análisis por mes</li>
+          <li>✓ 4 templates DOCX + PDF</li>
+          <li>✓ Score ATS + keywords</li>
+          <li>✓ Coaching personalizado</li>
+          <li>✓ Historial de análisis</li>
+        </ul>
+        <button class="btn btn-secondary btn-full" onclick="openAuthModal('register')">Crear cuenta gratis</button>
+      </div>
+      <div class="plan-card plan-card-featured">
+        <div class="plan-badge">Recomendado</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">~$5 USD <span class="plan-period">/ mes vía Ko-fi</span></div>
+        <ul class="plan-features">
+          <li>✓ 50 análisis por mes</li>
+          <li>✓ Todo lo del plan Free</li>
+          <li>✓ Carta de presentación</li>
+          <li>✓ Prep de entrevista con STAR</li>
+          <li>✓ Optimización LinkedIn</li>
+        </ul>
+        <a href="https://ko-fi.com/analyzethis" target="_blank" rel="noopener" class="btn btn-primary btn-full">Apoyar en Ko-fi →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ── -->
+<section class="section section-alt" id="faq">
+  <div class="section-inner" style="max-width:720px">
+    <h2 class="section-title">Preguntas frecuentes</h2>
+    <div class="faq-list">
+
+      <details class="faq-item">
+        <summary class="faq-question">¿La IA inventa información en mi CV?</summary>
+        <div class="faq-answer">No. Analyze-This solo reorganiza y optimiza la información que tú proporcionas. Nunca agrega experiencia, educación ni habilidades que no estén en tu CV original.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-question">¿Qué es un ATS y por qué importa?</summary>
+        <div class="faq-answer">Un ATS (Applicant Tracking System) es el software que usan las empresas para filtrar CVs antes de que lleguen a Recursos Humanos. Más del 75% de los CVs son rechazados automáticamente por no tener las keywords correctas o el formato adecuado.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-question">¿Qué formatos acepta?</summary>
+        <div class="faq-answer">PDF y DOCX. Si tienes tu CV en otro formato (Google Docs, Word antiguo, etc.), expórtalo a PDF antes de subir. El tamaño máximo es 10 MB.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-question">¿Cómo funciona el plan gratuito?</summary>
+        <div class="faq-answer">Puedes hacer 1 análisis sin registrarte. Con cuenta gratuita tienes 5 análisis por mes, historial completo y los 4 templates descargables. No se requiere tarjeta de crédito.</div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const zone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('cv-file');
+  const uploadContent = document.getElementById('upload-content');
+  const uploadSelected = document.getElementById('upload-selected');
+  const uploadFilename = document.getElementById('upload-filename');
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+  function setFile(file) {
+    uploadFilename.textContent = file.name;
+    uploadContent.classList.add('hidden');
+    uploadSelected.classList.remove('hidden');
+    document.getElementById('cv-text-raw').value = '';
+  }
+  function clearFile() {
+    fileInput.value = '';
+    uploadContent.classList.remove('hidden');
+    uploadSelected.classList.add('hidden');
+  }
+
+  document.querySelectorAll('.toggle-card input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.toggle-card').classList.toggle('active', cb.checked));
+  });
+
+  function checkPages(val) {
+    const warn = document.getElementById('pages-warn');
+    if (parseInt(val) > 2) warn.classList.remove('hidden');
+    else warn.classList.add('hidden');
+  }
+
+  document.getElementById('analyze-form').addEventListener('submit', function(e) {
+    const cvFile = document.getElementById('cv-file').files[0];
+    const cvText = document.getElementById('cv-text-raw').value.trim();
+    if (!cvFile && !cvText) {
+      e.preventDefault();
+      alert('Sube un CV o pega el texto antes de continuar.');
+      return;
+    }
+    const btn = document.getElementById('submit-btn');
+    btn.querySelector('.btn-text').classList.add('hidden');
+    btn.querySelector('.btn-loading').classList.remove('hidden');
+    btn.disabled = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+</script>
+{% endblock %}

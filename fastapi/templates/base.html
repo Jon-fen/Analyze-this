@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Analyze-This · CV Optimizer ATS{% endblock %}</title>
+  <meta name="description" content="Sube tu CV, pega la oferta, descarga listo para enviar. Supera los filtros ATS.">
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<header class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">AT</span>
+      <span class="nav-logo-text">Analyze-This</span>
+      <span class="beta-pill">Beta</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/#como-funciona" class="nav-link">Cómo funciona</a>
+      <a href="/#planes" class="nav-link">Planes</a>
+
+      {% if user %}
+        <!-- Credits badge -->
+        {% set pct = (user.credits_remaining / user.credits_limit * 100) if user.credits_limit and user.plan != 'admin' else 100 %}
+        <span class="credit-badge {% if user.plan == 'admin' %}credit-admin{% elif pct == 0 %}credit-zero{% elif pct <= 50 %}credit-low{% endif %}">
+          {% if user.plan == 'admin' %}ADMIN · ∞
+          {% else %}{{ user.plan | upper }} · {{ user.credits_remaining }}/{{ user.credits_limit }}
+          {% endif %}
+        </span>
+
+        <!-- User dropdown -->
+        <div class="nav-dropdown">
+          <button class="nav-user-btn" onclick="toggleDropdown()">
+            {{ user.display_name or user.email.split('@')[0] }}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div class="dropdown-menu" id="nav-dropdown-menu">
+            <a href="/historial" class="dropdown-item">Mi historial</a>
+            <a href="#" class="dropdown-item" onclick="openAuthModal('code'); closeDropdown(); return false;">Activar código</a>
+            {% if user.plan == 'admin' %}
+            <a href="/admin" class="dropdown-item">Panel Admin</a>
+            {% endif %}
+            <div class="dropdown-divider"></div>
+            <form action="/auth/logout" method="POST" style="margin:0">
+              <button type="submit" class="dropdown-item dropdown-item-danger">Cerrar sesión</button>
+            </form>
+          </div>
+        </div>
+
+      {% else %}
+        <button class="btn btn-primary btn-sm" onclick="openAuthModal('login')">Entrar</button>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<!-- ── Main ── -->
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── Footer ── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span>© 2026 Analyze-This · CV Optimizer ATS</span>
+    <span class="footer-sep">·</span>
+    <span>Optimizado para ATS de Latinoamérica: Buk, Workday, Greenhouse, Rankmi</span>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════
+     AUTH MODAL
+════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="auth-modal" onclick="closeModalOnOverlay(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeAuthModal()">×</button>
+
+    <div class="modal-header">
+      <div class="modal-logo">AT</div>
+      <h2 class="modal-title">Analyze-This</h2>
+      <p class="modal-value-props">5 análisis gratis · 4 templates · Sin tarjeta</p>
+    </div>
+
+    <!-- Google OAuth -->
+    <button class="btn-google" onclick="loginGoogle()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615Z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z" fill="#EA4335"/></svg>
+      Continuar con Google
+    </button>
+
+    <div class="modal-divider"><span>o</span></div>
+
+    <!-- Tabs -->
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-login"   onclick="switchTab('login')">Con contraseña</button>
+      <button class="modal-tab"        id="tab-magic"   onclick="switchTab('magic')">Magic Link</button>
+      <button class="modal-tab"        id="tab-register" onclick="switchTab('register')">Crear cuenta</button>
+      <button class="modal-tab hidden" id="tab-code"    onclick="switchTab('code')">Código</button>
+    </div>
+
+    <!-- Tab: Login -->
+    <div class="modal-panel" id="panel-login">
+      <div class="modal-field">
+        <label class="field-label">Email</label>
+        <input type="email" id="login-email" class="modal-input" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Contraseña</label>
+        <input type="password" id="login-pw" class="modal-input" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="loginEmail()" id="login-btn">
+        <span id="login-btn-text">Entrar</span>
+        <span id="login-btn-spin" class="hidden">
+          <svg class="spinner" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+          Verificando…
+        </span>
+      </button>
+      <div id="login-error" class="modal-error hidden"></div>
+
+      <details class="modal-forgot">
+        <summary>¿Olvidaste tu contraseña?</summary>
+        <div style="margin-top:0.75rem">
+          <input type="email" id="reset-email" class="modal-input" placeholder="tu@email.com">
+          <button class="btn btn-secondary btn-full" style="margin-top:0.5rem" onclick="resetPassword()">Enviar link de recuperación</button>
+          <div id="reset-msg" class="modal-success hidden"></div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Tab: Magic Link -->
+    <div class="modal-panel hidden" id="panel-magic">
+      <p class="modal-hint">Te enviamos un link a tu email — haz clic y entras directo, sin contraseña.</p>
+      <div class="modal-field">
+        <label class="field-label">Tu email</label>
+        <input type="email" id="magic-email" class="modal-input" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="sendMagicLink()" id="magic-btn">
+        <span id="magic-btn-text">📩 Enviar link mágico</span>
+        <span id="magic-btn-spin" class="hidden">Enviando…</span>
+      </button>
+      <div id="magic-msg" class="modal-success hidden"></div>
+      <div id="magic-error" class="modal-error hidden"></div>
+    </div>
+
+    <!-- Tab: Register -->
+    <div class="modal-panel hidden" id="panel-register">
+      <div class="modal-field">
+        <label class="field-label">Email <span class="field-req">*</span></label>
+        <input type="email" id="reg-email" class="modal-input" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Nombre o apodo (opcional)</label>
+        <input type="text" id="reg-name" class="modal-input" placeholder="¿Cómo te llamas?">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Contraseña <span class="field-req">*</span></label>
+        <input type="password" id="reg-pw" class="modal-input" placeholder="mínimo 8 caracteres" autocomplete="new-password">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Confirmar contraseña</label>
+        <input type="password" id="reg-pw2" class="modal-input" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">🎟️ Código de activación (opcional)</label>
+        <input type="text" id="reg-code" class="modal-input" placeholder="Si tienes un código de acceso">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="registerEmail()" id="reg-btn">
+        <span id="reg-btn-text">Crear cuenta gratis</span>
+        <span id="reg-btn-spin" class="hidden">Creando cuenta…</span>
+      </button>
+      <div id="reg-msg" class="modal-success hidden"></div>
+      <div id="reg-error" class="modal-error hidden"></div>
+    </div>
+
+    <!-- Tab: Code (activate code post-login) -->
+    <div class="modal-panel hidden" id="panel-code">
+      <p class="modal-hint">Ingresa tu código de activación para desbloquear más análisis.</p>
+      <div class="modal-field">
+        <label class="field-label">Código</label>
+        <input type="text" id="code-input" class="modal-input" placeholder="EJEMPLO2026" style="text-transform:uppercase">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="activateCode()">Activar código</button>
+      <div id="code-msg" class="modal-success hidden"></div>
+      <div id="code-error" class="modal-error hidden"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Scripts ── -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+const SUPABASE_URL  = "{{ SUPABASE_URL | default('') }}";
+const SUPABASE_KEY  = "{{ SUPABASE_KEY | default('') }}";
+const RAILWAY_URL   = "https://analyze-this-production.up.railway.app";
+
+let _sbClient = null;
+function getSB() {
+  if (!_sbClient && SUPABASE_URL && SUPABASE_KEY) {
+    _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { flowType: 'pkce' }
+    });
+  }
+  return _sbClient;
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openAuthModal(tab) {
+  document.getElementById('auth-modal').classList.add('open');
+  switchTab(tab || 'login');
+}
+function closeAuthModal() {
+  document.getElementById('auth-modal').classList.remove('open');
+}
+function closeModalOnOverlay(e) {
+  if (e.target === document.getElementById('auth-modal')) closeAuthModal();
+}
+
+function switchTab(tab) {
+  ['login','magic','register','code'].forEach(t => {
+    document.getElementById('tab-' + t)?.classList.remove('active');
+    document.getElementById('panel-' + t)?.classList.add('hidden');
+  });
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  document.getElementById('panel-' + tab)?.classList.remove('hidden');
+  // show code tab button when needed
+  if (tab === 'code') document.getElementById('tab-code').classList.remove('hidden');
+}
+
+function toggleDropdown() {
+  document.getElementById('nav-dropdown-menu')?.classList.toggle('open');
+}
+function closeDropdown() {
+  document.getElementById('nav-dropdown-menu')?.classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.nav-dropdown')) closeDropdown();
+});
+
+// ── Persist session (called after any auth success) ──────────────────────────
+async function persistSession(session, user) {
+  await fetch('/auth/set-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token:  session.access_token,
+      refresh_token: session.refresh_token,
+      user_id:       user?.id || '',
+      email:         user?.email || '',
+      display_name:  user?.user_metadata?.display_name || user?.user_metadata?.full_name || '',
+    }),
+  });
+}
+
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+async function loginGoogle() {
+  const sb = getSB();
+  if (!sb) return;
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: RAILWAY_URL + '/auth/callback' },
+  });
+}
+
+// ── Email/password login ──────────────────────────────────────────────────────
+async function loginEmail() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw    = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+  const spinner = document.getElementById('login-btn-spin');
+  const txt   = document.getElementById('login-btn-text');
+
+  errEl.classList.add('hidden');
+  if (!email || !pw) { showEl(errEl, 'Completa email y contraseña.'); return; }
+
+  txt.classList.add('hidden');
+  spinner.classList.remove('hidden');
+  btn.disabled = true;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const sb = getSB();
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    clearTimeout(timeout);
+    if (error) throw new Error(error.message);
+    await persistSession(data.session, data.user);
+    window.location.reload();
+  } catch(e) {
+    clearTimeout(timeout);
+    const msg = e.name === 'AbortError' ? 'Tiempo agotado. Intenta nuevamente.' : (e.message || 'Error al iniciar sesión.');
+    showEl(errEl, msg);
+    txt.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    btn.disabled = false;
+  }
+}
+
+// ── Magic link ────────────────────────────────────────────────────────────────
+async function sendMagicLink() {
+  const email = document.getElementById('magic-email').value.trim();
+  const msgEl = document.getElementById('magic-msg');
+  const errEl = document.getElementById('magic-error');
+  const btn   = document.getElementById('magic-btn');
+
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  if (!email) { showEl(errEl, 'Ingresa tu email.'); return; }
+
+  document.getElementById('magic-btn-text').classList.add('hidden');
+  document.getElementById('magic-btn-spin').classList.remove('hidden');
+  btn.disabled = true;
+
+  try {
+    const sb = getSB();
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: RAILWAY_URL + '/auth/callback' },
+    });
+    if (error) throw new Error(error.message);
+    showEl(msgEl, '📩 Link enviado. Revisa tu email (y spam). Expira en 1 hora.');
+  } catch(e) {
+    showEl(errEl, e.message || 'Error enviando link.');
+  }
+  document.getElementById('magic-btn-text').classList.remove('hidden');
+  document.getElementById('magic-btn-spin').classList.add('hidden');
+  btn.disabled = false;
+}
+
+// ── Register ──────────────────────────────────────────────────────────────────
+async function registerEmail() {
+  const email = document.getElementById('reg-email').value.trim();
+  const name  = document.getElementById('reg-name').value.trim();
+  const pw    = document.getElementById('reg-pw').value;
+  const pw2   = document.getElementById('reg-pw2').value;
+  const code  = document.getElementById('reg-code').value.trim();
+  const msgEl = document.getElementById('reg-msg');
+  const errEl = document.getElementById('reg-error');
+  const btn   = document.getElementById('reg-btn');
+
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  if (!email || !pw) { showEl(errEl, 'Email y contraseña son obligatorios.'); return; }
+  if (pw !== pw2) { showEl(errEl, 'Las contraseñas no coinciden.'); return; }
+  if (pw.length < 8) { showEl(errEl, 'La contraseña debe tener al menos 8 caracteres.'); return; }
+
+  document.getElementById('reg-btn-text').classList.add('hidden');
+  document.getElementById('reg-btn-spin').classList.remove('hidden');
+  btn.disabled = true;
+
+  try {
+    const sb = getSB();
+    const { data, error } = await sb.auth.signUp({
+      email, password: pw,
+      options: { data: { display_name: name || '' } },
+    });
+    if (error) throw new Error(error.message);
+
+    if (data.session) {
+      await persistSession(data.session, data.user);
+      // Apply activation code if provided
+      if (code && data.user) {
+        await fetch('/auth/activate-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ code }),
+        });
+      }
+      window.location.reload();
+    } else {
+      showEl(msgEl, '✅ Cuenta creada. Revisa tu email para confirmar.');
+    }
+  } catch(e) {
+    showEl(errEl, e.message || 'Error al crear cuenta.');
+  }
+  document.getElementById('reg-btn-text').classList.remove('hidden');
+  document.getElementById('reg-btn-spin').classList.add('hidden');
+  btn.disabled = false;
+}
+
+// ── Activate code (post-login) ────────────────────────────────────────────────
+async function activateCode() {
+  const code  = document.getElementById('code-input').value.trim().toUpperCase();
+  const msgEl = document.getElementById('code-msg');
+  const errEl = document.getElementById('code-error');
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  if (!code) return;
+  const res = await fetch('/auth/activate-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code }),
+  });
+  const data = await res.json();
+  if (data.ok) { showEl(msgEl, data.msg); setTimeout(() => window.location.reload(), 1500); }
+  else         { showEl(errEl, data.msg || data.error || 'Error.'); }
+}
+
+// ── Reset password ────────────────────────────────────────────────────────────
+async function resetPassword() {
+  const email = document.getElementById('reset-email').value.trim();
+  const msgEl = document.getElementById('reset-msg');
+  if (!email) return;
+  const res  = await fetch('/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ email }),
+  });
+  const data = await res.json();
+  msgEl.textContent = data.msg || (data.ok ? 'Email enviado.' : 'Error.');
+  msgEl.classList.remove('hidden');
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function showEl(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
+
+// ── Auto-open modal ───────────────────────────────────────────────────────────
+{% if show_auth_modal %}
+document.addEventListener('DOMContentLoaded', () => openAuthModal('login'));
+{% endif %}
+</script>
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

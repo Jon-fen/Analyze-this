@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Autenticando… · Analyze-This</title>
+  <style>
+    body { font-family: Inter, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0F1117; margin: 0; }
+    .box { text-align: center; padding: 2rem; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #2A2D3A; border-top-color: #2D5BE3; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 1.2rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #8B96A0; font-size: 0.9rem; margin: 0; }
+    .err { color: #EF4444; font-size: 0.85rem; margin-top: 0.8rem; display: none; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner"></div>
+  <p>Autenticando, un momento…</p>
+  <p class="err" id="err-msg"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(async () => {
+  const SUPABASE_URL = "{{ SUPABASE_URL | default('') }}";
+  const SUPABASE_KEY = "{{ SUPABASE_KEY | default('') }}";
+  const RAILWAY_URL  = "{{ RAILWAY_URL | default('https://analyze-this-production.up.railway.app') }}";
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) { window.location.href = '/'; return; }
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { flowType: 'pkce' } });
+
+  async function persist(session, user) {
+    await fetch('/auth/set-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token:  session.access_token,
+        refresh_token: session.refresh_token,
+        user_id:       user?.id || '',
+        email:         user?.email || '',
+        display_name:  user?.user_metadata?.display_name || user?.user_metadata?.full_name || '',
+      }),
+    });
+  }
+
+  try {
+    let { data, error } = await sb.auth.getSession();
+
+    if (!data?.session) {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        const result = await sb.auth.exchangeCodeForSession(code);
+        data = result.data; error = result.error;
+      }
+    }
+
+    if (error || !data?.session) throw new Error(error?.message || 'No se pudo obtener la sesión.');
+
+    await persist(data.session, data.user || data.session.user);
+    const next = new URLSearchParams(window.location.search).get('next') || '/';
+    window.location.href = next;
+  } catch(e) {
+    document.getElementById('err-msg').textContent = 'Error al autenticar: ' + e.message + '. Redirigiendo…';
+    document.getElementById('err-msg').style.display = 'block';
+    setTimeout(() => { window.location.href = '/'; }, 2500);
+  }
+})();
+</script>
+</body>
+</html>

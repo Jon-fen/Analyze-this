@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Panel Admin · Analyze-This{% endblock %}
+
+{% block content %}
+<div class="results-container">
+
+  <div class="results-nav">
+    <a href="/" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Inicio
+    </a>
+  </div>
+
+  <h1 class="candidate-name" style="font-size:1.7rem;margin-bottom:0.25rem">Panel Admin</h1>
+  <p class="candidate-title">Gestión de Analyze-This</p>
+
+  <!-- Stats -->
+  <div class="breakdown-card" style="margin-top:1.5rem">
+    <h3 class="card-title">Estadísticas globales</h3>
+    <div class="breakdown-grid">
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">CVs generados (total)</span>
+          <span class="breakdown-pct" style="color:var(--blue)">{{ "{:,}".format(stats.cvs) }}</span>
+        </div>
+      </div>
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">Usuarios registrados</span>
+          <span class="breakdown-pct" style="color:var(--blue)">{{ "{:,}".format(stats.users) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users -->
+  <div class="breakdown-card">
+    <h3 class="card-title">Gestión de usuarios <span style="font-weight:400;color:var(--text3)">(últimos 20)</span></h3>
+    {% if users %}
+    <div class="admin-table">
+      {% for u in users %}
+      {% set plan = u.plan or 'free' %}
+      {% set limit = plan_limits.get(plan, 5) %}
+      {% set used  = u.credits_used_this_month or 0 %}
+      <div class="admin-row" id="user-row-{{ u.id }}">
+        <div class="admin-user-info">
+          <strong>{{ u.email }}</strong>
+          <span style="font-size:0.75rem;color:var(--text3)">
+            {{ used }}/{% if plan == 'admin' %}∞{% else %}{{ limit }}{% endif %} análisis
+            {% if u.activation_code %} · código: {{ u.activation_code }}{% endif %}
+          </span>
+        </div>
+        <select class="select" id="plan-{{ u.id }}" style="width:auto;font-size:0.8rem">
+          {% for p in ['free','pro_code','pro','admin'] %}
+          <option value="{{ p }}" {% if plan == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="changePlan('{{ u.id }}')">Cambiar</button>
+        <button class="btn btn-secondary btn-sm" onclick="resetCredits('{{ u.id }}')" title="Reset créditos">↺</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text3)">No hay usuarios aún.</p>
+    {% endif %}
+  </div>
+
+  <!-- Activation codes -->
+  <div class="breakdown-card">
+    <h3 class="card-title">Códigos de activación</h3>
+    {% if codes %}
+    <div class="admin-table">
+      {% for c in codes %}
+      <div class="admin-row">
+        <div class="admin-user-info">
+          <strong {% if not c.active %}style="text-decoration:line-through;color:var(--text3)"{% endif %}>
+            {{ '✅' if c.active else '❌' }} {{ c.code }}
+          </strong>
+          <span style="font-size:0.75rem;color:var(--text3)">
+            {{ c.description or '' }} · {{ c.uses_count or 0 }}/{% if c.max_uses %}{{ c.max_uses }}{% else %}∞{% endif %} usos · {{ c.grants_plan }}
+          </span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="toggleCode('{{ c.id }}', {{ 'false' if c.active else 'true' }})">
+          {{ 'Desactivar' if c.active else 'Activar' }}
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text3)">No hay códigos aún.</p>
+    {% endif %}
+
+    <details style="margin-top:1rem">
+      <summary class="paste-toggle">+ Crear nuevo código</summary>
+      <form onsubmit="createCode(event)" style="margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <div class="modal-field">
+          <label class="field-label">Código</label>
+          <input type="text" class="modal-input" id="nc-code" placeholder="ICI2026" style="text-transform:uppercase" required>
+        </div>
+        <div class="modal-field">
+          <label class="field-label">Descripción</label>
+          <input type="text" class="modal-input" id="nc-desc" placeholder="Ex alumnos ICI UNAB">
+        </div>
+        <div class="modal-field">
+          <label class="field-label">Plan que otorga</label>
+          <select class="select" id="nc-plan">
+            <option value="pro_code">pro_code (10/mes)</option>
+            <option value="pro">pro (50/mes)</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label class="field-label">Máx usos (0=ilimitado)</label>
+          <input type="number" class="modal-input" id="nc-uses" value="0" min="0">
+        </div>
+        <div class="modal-field">
+          <label class="field-label">Expira (YYYY-MM-DD, opcional)</label>
+          <input type="text" class="modal-input" id="nc-exp" placeholder="2026-12-31">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button type="submit" class="btn btn-primary btn-sm" id="nc-btn">Crear código</button>
+        </div>
+      </form>
+    </details>
+  </div>
+
+  <!-- Feedback -->
+  <div class="breakdown-card">
+    <h3 class="card-title">Feedback recibido</h3>
+    {% if feedbacks %}
+    <div class="admin-table">
+      {% for fb in feedbacks %}
+      <div class="admin-row" id="fb-{{ fb.id }}">
+        <div class="admin-user-info" style="flex:1">
+          <strong>{{ '⭐' * (fb.rating or 0) }} {{ fb.job_title or '' }}</strong>
+          <span style="font-size:0.75rem;color:var(--text3)">
+            {{ fb.email or '' }} · {{ (fb.created_at or '')[:10] }} ·
+            {% if fb.approved %}<span style="color:var(--green)">✅ Publicado</span>
+            {% else %}<span style="color:var(--amber)">⏳ Pendiente</span>{% endif %}
+          </span>
+          <p style="margin:0.3rem 0 0;font-size:0.85rem;color:var(--text2)">{{ fb.comment or '—' }}</p>
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-shrink:0">
+          <button class="btn btn-secondary btn-sm" onclick="approveFb('{{ fb.id }}', true)">✅</button>
+          <button class="btn btn-secondary btn-sm" onclick="approveFb('{{ fb.id }}', false)">❌</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text3)">No hay feedback todavía.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function postAdmin(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body),
+  });
+  return res.json();
+}
+
+window.changePlan = async function(uid) {
+  const plan = document.getElementById('plan-' + uid).value;
+  const data = await postAdmin(`/admin/user/${uid}/plan`, { plan });
+  if (data.ok) window.location.reload(); else alert('Error');
+};
+
+window.resetCredits = async function(uid) {
+  const data = await fetch(`/admin/user/${uid}/reset-credits`, { method: 'POST' }).then(r => r.json());
+  if (data.ok) window.location.reload(); else alert('Error');
+};
+
+window.toggleCode = async function(codeId, active) {
+  const data = await postAdmin(`/admin/codes/${codeId}/toggle`, { active });
+  if (data.ok) window.location.reload(); else alert('Error');
+};
+
+window.createCode = async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('nc-btn');
+  btn.disabled = true;
+  const data = await postAdmin('/admin/codes/create', {
+    code:        document.getElementById('nc-code').value.trim().toUpperCase(),
+    description: document.getElementById('nc-desc').value.trim(),
+    grants_plan: document.getElementById('nc-plan').value,
+    max_uses:    document.getElementById('nc-uses').value,
+    expires_at:  document.getElementById('nc-exp').value.trim(),
+  });
+  btn.disabled = false;
+  if (data.ok) window.location.reload(); else alert('Error al crear código');
+};
+
+window.approveFb = async function(fbId, approve) {
+  const url = `/admin/feedback/${fbId}/${approve ? 'approve' : 'reject'}`;
+  const data = await fetch(url, { method: 'POST' }).then(r => r.json());
+  if (data.ok) window.location.reload(); else alert('Error');
+};
+</script>
+{% endblock %}
