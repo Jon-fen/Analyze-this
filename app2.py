@@ -39,22 +39,22 @@ st.markdown("""
 
   /* ── Tokens ── */
   :root {
-    --bg:        #0a0a0b;
-    --bg2:       #111114;
-    --bg3:       #18181c;
+    --bg:        rgb(10,10,11);
+    --bg2:       rgb(17,17,20);
+    --bg3:       rgb(24,24,28);
     --border:    rgba(255,255,255,0.07);
     --border2:   rgba(255,255,255,0.12);
-    --text:      #e4e4e7;
-    --text2:     #a1a1aa;
-    --text3:     #71717a;
-    --blue:      #3b82f6;
+    --text:      rgb(228,228,231);
+    --text2:     rgb(161,161,170);
+    --text3:     rgb(113,113,122);
+    --blue:      rgb(59,130,246);
     --blue-dim:  rgba(59,130,246,0.12);
     --blue-bdr:  rgba(59,130,246,0.25);
-    --green:     #22c55e;
+    --green:     rgb(34,197,94);
     --green-dim: rgba(34,197,94,0.10);
-    --amber:     #f59e0b;
+    --amber:     rgb(245,158,11);
     --amber-dim: rgba(245,158,11,0.10);
-    --red:       #ef4444;
+    --red:       rgb(239,68,68);
     --radius:    8px;
     --radius-lg: 12px;
     color-scheme: dark;
@@ -92,7 +92,7 @@ st.markdown("""
   .stButton > button[kind="primary"],
   button[data-testid="baseButton-primary"] {
     background: var(--blue) !important;
-    color: #fff !important;
+    color: white !important;
     border: none !important;
     border-radius: var(--radius) !important;
     font-weight: 600 !important;
@@ -101,7 +101,7 @@ st.markdown("""
     transition: background 0.15s, transform 0.1s !important;
     box-shadow: 0 0 0 0 transparent !important;
   }
-  .stButton > button[kind="primary"]:hover { background: #2563eb !important; }
+  .stButton > button[kind="primary"]:hover { background: rgb(37,99,235) !important; }
   .stButton > button[kind="primary"]:active { transform: scale(0.98) !important; }
 
   /* ── Buttons — secondary (default) ── */
@@ -116,7 +116,7 @@ st.markdown("""
     padding: 0.5rem 1rem !important;
     transition: background 0.15s, border-color 0.15s !important;
   }
-  .stButton > button:hover { background: #222226 !important; border-color: rgba(255,255,255,0.2) !important; }
+  .stButton > button:hover { background: rgb(34,34,38) !important; border-color: rgba(255,255,255,0.2) !important; }
 
   /* ── Download buttons ── */
   div[data-testid="stDownloadButton"] button {
@@ -216,8 +216,8 @@ st.markdown("""
   [data-testid="stExpander"]:nth-of-type(1) { border-left: 2px solid var(--green) !important; }
   [data-testid="stExpander"]:nth-of-type(2) { border-left: 2px solid var(--amber) !important; }
   [data-testid="stExpander"]:nth-of-type(3) { border-left: 2px solid var(--blue) !important; }
-  [data-testid="stExpander"]:nth-of-type(4) { border-left: 2px solid #a78bfa !important; }
-  [data-testid="stExpander"]:nth-of-type(5) { border-left: 2px solid #38bdf8 !important; }
+  [data-testid="stExpander"]:nth-of-type(4) { border-left: 2px solid rgb(167,139,250) !important; }
+  [data-testid="stExpander"]:nth-of-type(5) { border-left: 2px solid rgb(56,189,248) !important; }
 
   /* ── Toggles ── */
   [data-testid="stToggle"] {
@@ -369,9 +369,9 @@ st.markdown("""
   }
   .sb-avatar {
     width: 34px; height: 34px; border-radius: 50%;
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, rgb(59,130,246) 0%, rgb(139,92,246) 100%);
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.9rem; font-weight: 700; color: #fff;
+    font-size: 0.9rem; font-weight: 700; color: white;
     flex-shrink: 0;
   }
   .sb-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
@@ -385,7 +385,7 @@ st.markdown("""
   }
   .sb-pill-free  { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
   .sb-pill-pro   { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
-  .sb-pill-admin { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+  .sb-pill-admin { background: rgba(168,85,247,0.12); color: rgb(192,132,252); border: 1px solid rgba(168,85,247,0.25); }
 
   /* ── Credits bar custom ── */
   .cred-bar-wrap {
