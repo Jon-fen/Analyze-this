@@ -3,13 +3,12 @@ Auth routes: set-session, callback, logout, reset-password, activate-code.
 """
 from fastapi import APIRouter, Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 
 from config import get_settings
+from deps import templates
 from services.session import ensure_profile, validate_and_use_code, RAILWAY_URL
 
 router = APIRouter(prefix="/auth")
-templates = Jinja2Templates(directory="templates")
 
 COOKIE_MAX_ACCESS  = 86_400        # 24 h
 COOKIE_MAX_REFRESH = 86_400 * 30   # 30 days

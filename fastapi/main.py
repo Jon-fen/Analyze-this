@@ -4,18 +4,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response
 
 from config import get_settings
+from deps import templates                        # shared instance
 from services.session import validate_session
 from routers import analyze, auth, tools, history, admin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inject Supabase config into templates env at startup
+    # Inject Supabase config into the shared templates env ONCE at startup.
+    # Because every router imports `templates` from deps.py (same object),
+    # these globals are visible in every template that is rendered.
     s = get_settings()
-    from fastapi.templating import Jinja2Templates
-    t = Jinja2Templates(directory="templates")
-    t.env.globals["SUPABASE_URL"] = s.supabase_url
-    t.env.globals["SUPABASE_KEY"] = s.supabase_key
+    templates.env.globals["SUPABASE_URL"] = s.supabase_url
+    templates.env.globals["SUPABASE_KEY"] = s.supabase_key
     yield
 
 
@@ -37,8 +38,8 @@ async def session_middleware(request: Request, call_next):
     request.state.user = user
     response: Response = await call_next(request)
     if new_tokens:
-        response.set_cookie("sb_access_token",  new_tokens["access_token"],  max_age=86400,       httponly=True, samesite="lax", secure=True)
-        response.set_cookie("sb_refresh_token", new_tokens["refresh_token"], max_age=86400 * 30,  httponly=True, samesite="lax", secure=True)
+        response.set_cookie("sb_access_token",  new_tokens["access_token"],  max_age=86400,      httponly=True, samesite="lax", secure=True)
+        response.set_cookie("sb_refresh_token", new_tokens["refresh_token"], max_age=86400 * 30, httponly=True, samesite="lax", secure=True)
     return response
 
 

@@ -6,9 +6,9 @@ import time
 from typing import Optional
 from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 
 from config import get_settings
+from deps import templates
 from services.claude import optimize_cv
 from services.extractor import extract_pdf, extract_docx, scrape_job_url, is_valid_url
 from services.builder import DOCX_BUILDERS, build_cv_pdf, build_analysis_pdf, TEMPLATES_META
@@ -19,7 +19,6 @@ from services.session import (
 )
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 # ─── In-memory result cache ────────────────────────────────────────────────────
 _result_cache: dict = {}

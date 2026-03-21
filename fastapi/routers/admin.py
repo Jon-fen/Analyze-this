@@ -3,9 +3,9 @@ Admin panel routes — plan == "admin" required for all.
 """
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from typing import Optional
 
+from deps import templates
 from services.session import (
     get_global_stats, get_admin_users, update_user_plan, reset_user_credits,
     get_all_codes, create_code, toggle_code,
@@ -14,7 +14,6 @@ from services.session import (
 )
 
 router = APIRouter(prefix="/admin")
-templates = Jinja2Templates(directory="templates")
 
 
 def _require_admin(request: Request):

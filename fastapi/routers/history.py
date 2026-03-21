@@ -3,12 +3,11 @@ History routes: GET /historial, POST /history/{id}/outcome
 """
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 
+from deps import templates
 from services.session import get_history, update_outcome
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/historial", response_class=HTMLResponse)
