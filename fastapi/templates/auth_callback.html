@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Autenticando… · Analyze-This</title>
+  <style>
+    body {
+      font-family: Inter, -apple-system, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; background: #F8F9FA; margin: 0;
+    }
+    .box { text-align: center; padding: 2rem; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #E5E7EB; border-top-color: #2D5BE3;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      margin: 0 auto 1.2rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #4B5563; font-size: 0.9rem; margin: 0; }
+    .error { color: #DC2626; font-size: 0.85rem; margin-top: 0.8rem; display: none; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner"></div>
+  <p>Autenticando, un momento…</p>
+  <p class="error" id="err-msg"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(async () => {
+  const SUPABASE_URL = "{{ SUPABASE_URL | default('') }}";
+  const SUPABASE_KEY = "{{ SUPABASE_KEY | default('') }}";
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    window.location.href = '/';
+    return;
+  }
+
+  const { createClient } = supabase;
+  const client = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { flowType: 'pkce' }
+  });
+
+  try {
+    // Exchange the code/token in the URL for a session
+    const { data, error } = await client.auth.getSession();
+
+    if (error || !data?.session) {
+      // Try exchangeCodeForSession for PKCE code param
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        const result = await client.auth.exchangeCodeForSession(code);
+        if (result.data?.session) {
+          await persistSession(result.data.session);
+          return;
+        }
+      }
+      // Fallback: redirect home
+      window.location.href = '/';
+      return;
+    }
+
+    await persistSession(data.session);
+  } catch (e) {
+    document.getElementById('err-msg').textContent = 'Error al autenticar. Redirigiendo…';
+    document.getElementById('err-msg').style.display = 'block';
+    setTimeout(() => { window.location.href = '/'; }, 2000);
+  }
+
+  async function persistSession(session) {
+    const res = await fetch('/auth/set-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      }),
+    });
+    const redirect = new URLSearchParams(window.location.search).get('next') || '/';
+    window.location.href = redirect;
+  }
+})();
+</script>
+</body>
+</html>
