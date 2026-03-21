@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% block title %}Análisis ATS · {{ cv.nombre }} · Analyze-This{% endblock %}
+
+{% block content %}
+
+<div class="results-container">
+
+  <!-- ── Back link ── -->
+  <div class="results-nav">
+    <a href="/" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Analizar otro CV
+    </a>
+    {% if was_truncated %}
+    <div class="warn-banner">
+      ℹ️ CV muy extenso — se analizaron las páginas más recientes. Activa "Cambio de carrera" para procesar el documento completo.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Candidate header ── -->
+  <div class="candidate-header">
+    <div class="candidate-info">
+      <h1 class="candidate-name">{{ cv.nombre }}</h1>
+      <p class="candidate-title">{{ cv.titulo_profesional }}</p>
+      <div class="candidate-contact">
+        {% if cv.email %}<span>{{ cv.email }}</span>{% endif %}
+        {% if cv.telefono %}<span>{{ cv.telefono }}</span>{% endif %}
+        {% if cv.ubicacion %}<span>{{ cv.ubicacion }}</span>{% endif %}
+      </div>
+    </div>
+
+    <!-- Score bubble -->
+    <div class="score-bubble-wrap">
+      {% set score_color = "#16A34A" if score >= 75 else "#D97706" if score >= 55 else "#DC2626" %}
+      {% set score_bg = "#F0FDF4" if score >= 75 else "#FFFBEB" if score >= 55 else "#FEF2F2" %}
+      {% set circumference = 339 %}
+      {% set dash = (score / 100) * circumference %}
+      <div class="score-bubble" style="--score-color: {{ score_color }}; --score-bg: {{ score_bg }}">
+        <svg class="score-ring-svg" viewBox="0 0 120 120">
+          <circle class="score-track" cx="60" cy="60" r="54"/>
+          <circle class="score-ring" cx="60" cy="60" r="54"
+            stroke="{{ score_color }}"
+            stroke-dasharray="{{ dash }} {{ circumference }}"
+            style="--dash: {{ dash }}; --circ: {{ circumference }}"/>
+        </svg>
+        <div class="score-inner">
+          <span class="score-value" style="color: {{ score_color }}">{{ score }}%</span>
+          <span class="score-label">match ATS</span>
+        </div>
+      </div>
+
+      <!-- ATS badge -->
+      <div class="ats-status {% if ats_ok %}ats-ok{% else %}ats-fail{% endif %}">
+        {% if ats_ok %}
+        <span class="ats-dot"></span> ATS Compatible
+        {% else %}
+        <span>✕</span> No compatible
+        {% endif %}
+      </div>
+      {% if ats_detected %}
+      <div class="ats-detected-badge">🎯 {{ ats_detected }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Score explanation ── -->
+  {% if score_explain %}
+  <div class="score-explain-card">
+    <p>{{ score_explain }}</p>
+    {% if ats_reason %}<p class="score-ats-reason">{{ ats_reason }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── Score breakdown ── -->
+  {% if score_desglose %}
+  <div class="breakdown-card">
+    <h3 class="card-title">Desglose del análisis</h3>
+    <div class="breakdown-grid">
+      {% for key, value in score_desglose.items() %}
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">{{ key | capitalize }}</span>
+          <span class="breakdown-pct" style="color: {% if value >= 75 %}#16A34A{% elif value >= 55 %}#D97706{% else %}#DC2626{% endif %}">{{ value }}%</span>
+        </div>
+        <div class="breakdown-bar-track">
+          <div class="breakdown-bar-fill"
+            style="width: {{ value }}%; background: {% if value >= 75 %}#16A34A{% elif value >= 55 %}#D97706{% else %}#DC2626{% endif %}">
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Keywords ── -->
+  {% if keywords_ok or keywords_miss %}
+  <div class="keywords-card">
+    <h3 class="card-title">Keywords ATS</h3>
+    <div class="keywords-grid">
+      {% if keywords_ok %}
+      <div class="kw-section">
+        <div class="kw-section-header kw-ok-header">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6.5" stroke="#16A34A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Integradas ({{ keywords_ok | length }})
+        </div>
+        <div class="kw-chips">
+          {% for kw in keywords_ok %}
+          <span class="kw-chip kw-chip-ok">{{ kw }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if keywords_miss %}
+      <div class="kw-section">
+        <div class="kw-section-header kw-miss-header">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 4v3.5M7 9.5h.01" stroke="#D97706" stroke-width="1.75" stroke-linecap="round"/></svg>
+          Ausentes ({{ keywords_miss | length }})
+        </div>
+        <div class="kw-chips">
+          {% for kw in keywords_miss %}
+          <span class="kw-chip kw-chip-miss">{{ kw }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Coaching cards ── -->
+  {% if coaching %}
+  <div class="coaching-section">
+    <h3 class="section-title-sm">Tu plan de acción</h3>
+    <p class="section-sub-sm">Recomendaciones personalizadas para esta postulación</p>
+
+    {% set coach_colors = ["#16A34A", "#D97706", "#2D5BE3", "#7C3AED", "#0891B2"] %}
+    {% for tip in coaching %}
+    <details class="coaching-card" {% if loop.index == 1 %}open{% endif %}>
+      <summary class="coaching-summary" style="border-left-color: {{ coach_colors[loop.index0 % 5] }}">
+        <span class="coaching-cat">{{ tip.categoria }}</span>
+        <svg class="coaching-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </summary>
+      <div class="coaching-body">{{ tip.tip }}</div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Download section ── -->
+  <div class="download-section">
+    <h3 class="section-title-sm">Descarga tu CV optimizado</h3>
+    <p class="section-sub-sm">4 templates listos para enviar · DOCX editable + PDF</p>
+
+    <div class="templates-grid">
+      {% for tpl_name, meta in templates_meta.items() %}
+      <div class="template-card">
+        <div class="template-header" style="border-top-color: {{ meta.color }}">
+          <span class="template-icon">{{ meta.icon }}</span>
+          <div class="template-info">
+            <span class="template-name">{{ tpl_name }}</span>
+            <span class="template-ideal">{{ meta.ideal }}</span>
+          </div>
+        </div>
+        <div class="template-actions">
+          <a href="/download/{{ result_id }}?fmt=docx&template={{ tpl_name | urlencode }}"
+             class="btn btn-download btn-docx" download>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            DOCX
+          </a>
+          <a href="/download/{{ result_id }}?fmt=pdf&template={{ tpl_name | urlencode }}"
+             class="btn btn-download btn-pdf" download>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            PDF
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Register CTA — only shown to guests -->
+    {% if not user %}
+    <div class="register-cta">
+      <div class="register-cta-text">
+        <strong>Guarda tu historial y accede a coaching completo</strong>
+        <span>Crea una cuenta gratis — 5 análisis/mes, carta de presentación, prep de entrevista, LinkedIn.</span>
+      </div>
+      <button class="btn btn-primary" onclick="openAuthModal('register')">Crear cuenta gratis</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── CV Preview (optimized content) ── -->
+  <div class="cv-preview-section">
+    <h3 class="section-title-sm">Tu CV optimizado</h3>
+    <div class="cv-preview-card">
+
+      <div class="cv-hdr">
+        <h2 class="cv-nombre">{{ cv.nombre }}</h2>
+        <p class="cv-titulo">{{ cv.titulo_profesional }}</p>
+        <div class="cv-contact">
+          {% if cv.email %}<span>{{ cv.email }}</span>{% endif %}
+          {% if cv.telefono %}<span>{{ cv.telefono }}</span>{% endif %}
+          {% if cv.ubicacion %}<span>{{ cv.ubicacion }}</span>{% endif %}
+          {% if cv.linkedin %}<span>{{ cv.linkedin }}</span>{% endif %}
+        </div>
+      </div>
+
+      {% if cv.resumen_profesional %}
+      <div class="cv-section">
+        <div class="cv-section-title">Resumen Profesional</div>
+        <p>{{ cv.resumen_profesional }}</p>
+      </div>
+      {% endif %}
+
+      {% if cv.experiencia %}
+      <div class="cv-section">
+        <div class="cv-section-title">Experiencia Profesional</div>
+        {% for exp in cv.experiencia %}
+        <div class="cv-exp-block">
+          <div class="cv-exp-header">
+            <strong>{{ exp.cargo }}</strong>
+            <span class="cv-exp-company">{{ exp.empresa }}</span>
+            <span class="cv-exp-period">{{ exp.periodo }}</span>
+          </div>
+          <ul class="cv-exp-logros">
+            {% for logro in exp.logros %}
+            <li>{{ logro }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if cv.educacion %}
+      <div class="cv-section">
+        <div class="cv-section-title">Educación</div>
+        {% for edu in cv.educacion %}
+        <div class="cv-edu-block">
+          <strong>{{ edu.titulo }}</strong> — {{ edu.institucion }}
+          {% if edu.periodo %}<span class="cv-exp-period">{{ edu.periodo }}</span>{% endif %}
+          {% if edu.detalle %}<p class="cv-edu-detail">{{ edu.detalle }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if cv.habilidades_tecnicas or cv.habilidades_blandas %}
+      <div class="cv-section">
+        <div class="cv-section-title">Habilidades</div>
+        {% if cv.habilidades_tecnicas %}
+        <p><strong>Técnicas:</strong> {{ cv.habilidades_tecnicas | join(" · ") }}</p>
+        {% endif %}
+        {% if cv.habilidades_blandas %}
+        <p><strong>Competencias:</strong> {{ cv.habilidades_blandas | join(" · ") }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if cv.idiomas %}
+      <div class="cv-section">
+        <div class="cv-section-title">Idiomas</div>
+        <p>{{ cv.idiomas | join(" | ") }}</p>
+      </div>
+      {% endif %}
+
+      {% if cv.certificaciones %}
+      <div class="cv-section">
+        <div class="cv-section-title">Certificaciones</div>
+        <ul class="cv-exp-logros">
+          {% for cert in cv.certificaciones %}{% if cert %}
+          <li>{{ cert }}</li>
+          {% endif %}{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Animate score ring on load
+  document.addEventListener('DOMContentLoaded', () => {
+    const ring = document.querySelector('.score-ring');
+    if (ring) {
+      ring.style.animation = 'scoreIn 1s ease-out forwards';
+    }
+    // Animate breakdown bars
+    document.querySelectorAll('.breakdown-bar-fill').forEach(bar => {
+      bar.style.animation = 'barIn 0.8s ease-out forwards';
+    });
+  });
+</script>
+{% endblock %}

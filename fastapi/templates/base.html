@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Analyze-This · CV Optimizer ATS{% endblock %}</title>
+  <meta name="description" content="Sube tu CV, pega la oferta, descarga listo para enviar. Supera los filtros ATS.">
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/app.css">
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Nav -->
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="nav-logo-mark">AT</span>
+        <span class="nav-logo-text">Analyze-This</span>
+        <span class="beta-pill">Beta</span>
+      </a>
+      <nav class="nav-links">
+        <a href="/" class="nav-link">Optimizar CV</a>
+        <a href="#como-funciona" class="nav-link">Cómo funciona</a>
+        {% if request.state.user %}
+          <span class="nav-user">Hola, {{ request.state.user.display_name }}</span>
+          <form action="/auth/logout" method="post" style="display:inline;margin:0">
+            <button type="submit" class="btn btn-secondary btn-sm">Salir</button>
+          </form>
+        {% else %}
+          <button class="btn btn-primary btn-sm" onclick="openAuthModal()">
+            Entrar con Google
+          </button>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© 2026 Analyze-This · CV Optimizer ATS</span>
+      <span class="footer-sep">·</span>
+      <span>Optimizado para ATS latinoamericanos: Buk, Workday, Greenhouse, Rankmi</span>
+    </div>
+  </footer>
+
+  <!-- ─── Auth Modal ──────────────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="auth-modal" onclick="if(event.target===this)closeAuthModal()">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Iniciar sesión">
+
+      <button class="modal-close" onclick="closeAuthModal()" aria-label="Cerrar">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <div class="modal-header">
+        <div class="modal-logo">
+          <span class="nav-logo-mark" style="width:28px;height:28px;font-size:0.75rem">AT</span>
+          <span style="font-weight:700;font-size:1rem;letter-spacing:-0.02em">Analyze-This</span>
+        </div>
+        <h2 class="modal-title">Accede a tu cuenta</h2>
+        <p class="modal-sub">5 análisis gratis al mes · Sin tarjeta</p>
+      </div>
+
+      <!-- Tabs -->
+      <div class="modal-tabs" role="tablist">
+        <button class="modal-tab active" role="tab" onclick="switchTab('login')" id="tab-login">Iniciar sesión</button>
+        <button class="modal-tab" role="tab" onclick="switchTab('magic')" id="tab-magic">Magic Link</button>
+        <button class="modal-tab" role="tab" onclick="switchTab('register')" id="tab-register">Crear cuenta</button>
+      </div>
+
+      <!-- Alert area -->
+      <div class="modal-alert" id="modal-alert" style="display:none"></div>
+
+      <!-- ── Login panel ── -->
+      <div class="modal-panel" id="panel-login">
+        <!-- Google OAuth -->
+        <button class="btn-google" onclick="loginGoogle()" type="button">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+            <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+          </svg>
+          Continuar con Google
+        </button>
+
+        <div class="modal-divider"><span>o</span></div>
+
+        <form onsubmit="loginEmail(event)">
+          <div class="modal-field">
+            <label class="field-label">Email</label>
+            <input type="email" class="modal-input" id="login-email" placeholder="tu@email.com" required autocomplete="email">
+          </div>
+          <div class="modal-field">
+            <label class="field-label">Contraseña</label>
+            <input type="password" class="modal-input" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Iniciar sesión</button>
+        </form>
+      </div>
+
+      <!-- ── Magic Link panel ── -->
+      <div class="modal-panel" id="panel-magic" style="display:none">
+        <p class="modal-desc">Ingresa tu email y te enviamos un enlace mágico — sin contraseña.</p>
+        <form onsubmit="sendMagicLink(event)">
+          <div class="modal-field">
+            <label class="field-label">Email</label>
+            <input type="email" class="modal-input" id="magic-email" placeholder="tu@email.com" required autocomplete="email">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="magic-btn">Enviar enlace mágico</button>
+        </form>
+      </div>
+
+      <!-- ── Register panel ── -->
+      <div class="modal-panel" id="panel-register" style="display:none">
+        <!-- Google OAuth -->
+        <button class="btn-google" onclick="loginGoogle()" type="button">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+            <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+          </svg>
+          Registrarse con Google
+        </button>
+
+        <div class="modal-divider"><span>o con email</span></div>
+
+        <form onsubmit="registerEmail(event)">
+          <div class="modal-field">
+            <label class="field-label">Nombre (opcional)</label>
+            <input type="text" class="modal-input" id="reg-name" placeholder="Tu nombre" autocomplete="name">
+          </div>
+          <div class="modal-field">
+            <label class="field-label">Email</label>
+            <input type="email" class="modal-input" id="reg-email" placeholder="tu@email.com" required autocomplete="email">
+          </div>
+          <div class="modal-field">
+            <label class="field-label">Contraseña</label>
+            <input type="password" class="modal-input" id="reg-password" placeholder="Mínimo 8 caracteres" required minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="reg-btn">Crear cuenta gratis</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+  <!-- ─── End Auth Modal ─────────────────────────────────────────────────────── -->
+
+  <script src="/static/js/app.js"></script>
+
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <!-- Auth JS -->
+  <script>
+  (() => {
+    const SUPABASE_URL = "{{ SUPABASE_URL | default('') }}";
+    const SUPABASE_KEY = "{{ SUPABASE_KEY | default('') }}";
+    let _client = null;
+
+    function getClient() {
+      if (!_client && SUPABASE_URL && SUPABASE_KEY) {
+        _client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: {
+            flowType: 'pkce',
+            redirectTo: window.location.origin + '/auth/callback',
+          }
+        });
+      }
+      return _client;
+    }
+
+    // ── Modal open/close ──────────────────────────────────────────────────────
+    window.openAuthModal = function(tab) {
+      document.getElementById('auth-modal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      if (tab) switchTab(tab);
+      clearAlert();
+    };
+    window.closeAuthModal = function() {
+      document.getElementById('auth-modal').classList.remove('open');
+      document.body.style.overflow = '';
+    };
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeAuthModal();
+    });
+
+    // ── Tab switching ─────────────────────────────────────────────────────────
+    window.switchTab = function(tab) {
+      ['login', 'magic', 'register'].forEach(t => {
+        document.getElementById('panel-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      });
+      clearAlert();
+    };
+
+    // ── Alert helpers ─────────────────────────────────────────────────────────
+    function showAlert(msg, type) {
+      const el = document.getElementById('modal-alert');
+      el.textContent = msg;
+      el.className = 'modal-alert modal-alert-' + (type || 'error');
+      el.style.display = 'block';
+    }
+    function clearAlert() {
+      const el = document.getElementById('modal-alert');
+      el.style.display = 'none';
+      el.textContent = '';
+    }
+    function setLoading(btnId, loading) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.disabled = loading;
+      btn.textContent = loading ? 'Cargando…' : btn.dataset.label || btn.textContent;
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+    }
+
+    // ── Persist session server-side ───────────────────────────────────────────
+    async function persistSession(session) {
+      await fetch('/auth/set-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }),
+      });
+    }
+
+    // ── Google OAuth ──────────────────────────────────────────────────────────
+    window.loginGoogle = async function() {
+      const client = getClient();
+      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      try {
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + '/auth/callback' },
+        });
+        if (error) showAlert(error.message);
+      } catch (e) {
+        showAlert('Error al conectar con Google.');
+      }
+    };
+
+    // ── Email login ───────────────────────────────────────────────────────────
+    window.loginEmail = async function(e) {
+      e.preventDefault();
+      const client = getClient();
+      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      setLoading('login-btn', true);
+      clearAlert();
+      try {
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) { showAlert(error.message); return; }
+        await persistSession(data.session);
+        window.location.reload();
+      } catch (err) {
+        showAlert('Error al iniciar sesión.');
+      } finally {
+        setLoading('login-btn', false);
+      }
+    };
+
+    // ── Magic link ────────────────────────────────────────────────────────────
+    window.sendMagicLink = async function(e) {
+      e.preventDefault();
+      const client = getClient();
+      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      const email = document.getElementById('magic-email').value.trim();
+      setLoading('magic-btn', true);
+      clearAlert();
+      try {
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: window.location.origin + '/auth/callback' },
+        });
+        if (error) { showAlert(error.message); return; }
+        showAlert('¡Enlace enviado! Revisa tu correo.', 'success');
+      } catch (err) {
+        showAlert('Error al enviar el enlace.');
+      } finally {
+        setLoading('magic-btn', false);
+      }
+    };
+
+    // ── Email register ────────────────────────────────────────────────────────
+    window.registerEmail = async function(e) {
+      e.preventDefault();
+      const client = getClient();
+      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const name = document.getElementById('reg-name').value.trim();
+      setLoading('reg-btn', true);
+      clearAlert();
+      try {
+        const { data, error } = await client.auth.signUp({
+          email,
+          password,
+          options: { data: name ? { display_name: name, full_name: name } : {} },
+        });
+        if (error) { showAlert(error.message); return; }
+        // If email confirmation is disabled, session is returned immediately
+        if (data.session) {
+          await persistSession(data.session);
+          window.location.reload();
+        } else {
+          showAlert('¡Cuenta creada! Revisa tu correo para confirmarla.', 'success');
+        }
+      } catch (err) {
+        showAlert('Error al crear la cuenta.');
+      } finally {
+        setLoading('reg-btn', false);
+      }
+    };
+
+    // ── Auto-open modal from query param ──────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('show_auth') === '1') {
+        openAuthModal();
+        // Clean the URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('show_auth');
+        window.history.replaceState({}, '', url.toString());
+      }
+    });
+  })();
+  </script>
+
+  {% if show_auth_modal %}
+  <script>document.addEventListener('DOMContentLoaded', openAuthModal);</script>
+  {% endif %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
