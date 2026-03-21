@@ -35,168 +35,432 @@ st.set_page_config(page_title="CV Optimizer ATS", page_icon="🎯", layout="cent
 
 st.markdown("""
 <style>
-  /* ── Layout ── */
-  .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 820px; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-  /* ── Safari / dark mode fix ── */
-  :root { color-scheme: dark; }
-  html, body, .stApp, [data-testid="stAppViewContainer"],
-  [data-testid="stMain"], [data-testid="block-container"] {
-    background-color: #0F1117 !important;
-    color: #E8EEF4 !important;
+  /* ── Tokens ── */
+  :root {
+    --bg:        #0a0a0b;
+    --bg2:       #111114;
+    --bg3:       #18181c;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --text:      #e4e4e7;
+    --text2:     #a1a1aa;
+    --text3:     #71717a;
+    --blue:      #3b82f6;
+    --blue-dim:  rgba(59,130,246,0.12);
+    --blue-bdr:  rgba(59,130,246,0.25);
+    --green:     #22c55e;
+    --green-dim: rgba(34,197,94,0.10);
+    --amber:     #f59e0b;
+    --amber-dim: rgba(245,158,11,0.10);
+    --red:       #ef4444;
+    --radius:    8px;
+    --radius-lg: 12px;
+    color-scheme: dark;
   }
 
-  /* ── Download button ── */
+  /* ── Base ── */
+  html, body, .stApp, [data-testid="stAppViewContainer"],
+  [data-testid="stMain"], [data-testid="block-container"] {
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  }
+
+  /* ── Layout ── */
+  .block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 3rem !important;
+    max-width: 860px !important;
+  }
+
+  /* ── Sidebar ── */
+  section[data-testid="stSidebar"] {
+    background-color: var(--bg2) !important;
+    border-right: 1px solid var(--border) !important;
+  }
+  section[data-testid="stSidebar"] > div { padding-top: 1rem !important; }
+
+  /* ── Hide Streamlit chrome ── */
+  #MainMenu, footer, header, [data-testid="stToolbar"] { display: none !important; }
+
+  /* ── Typography ── */
+  h1, h2, h3 { font-family: 'Inter', sans-serif !important; letter-spacing: -0.025em !important; }
+
+  /* ── Buttons — primary ── */
+  .stButton > button[kind="primary"],
+  button[data-testid="baseButton-primary"] {
+    background: var(--blue) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: var(--radius) !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.55rem 1.2rem !important;
+    transition: background 0.15s, transform 0.1s !important;
+    box-shadow: 0 0 0 0 transparent !important;
+  }
+  .stButton > button[kind="primary"]:hover { background: #2563eb !important; }
+  .stButton > button[kind="primary"]:active { transform: scale(0.98) !important; }
+
+  /* ── Buttons — secondary (default) ── */
+  .stButton > button,
+  button[data-testid="baseButton-secondary"] {
+    background: var(--bg3) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 1rem !important;
+    transition: background 0.15s, border-color 0.15s !important;
+  }
+  .stButton > button:hover { background: #222226 !important; border-color: rgba(255,255,255,0.2) !important; }
+
+  /* ── Download buttons ── */
   div[data-testid="stDownloadButton"] button {
-    background-color: #1B6CA8; color: white;
-    font-size: 1rem; padding: 0.6rem 1.5rem;
-    border-radius: 6px; width: 100%; }
+    background: var(--bg3) !important;
+    color: var(--blue) !important;
+    border: 1px solid var(--blue-bdr) !important;
+    border-radius: var(--radius) !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    width: 100% !important;
+    padding: 0.5rem 0.8rem !important;
+    transition: background 0.15s !important;
+  }
+  div[data-testid="stDownloadButton"] button:hover {
+    background: var(--blue-dim) !important;
+  }
 
-  /* ── Score explain box ── */
-  .score-explain { background: #1A1F2B; border-radius: 10px;
-                   padding: 0.75rem 1rem; font-size: 0.9rem;
-                   color: #BCC8D4; margin-top: 0.5rem;
-                   border: 1px solid rgba(46,117,182,0.15); }
+  /* ── Inputs ── */
+  .stTextInput input, .stTextArea textarea, .stSelectbox select {
+    background: var(--bg2) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.9rem !important;
+    transition: border-color 0.15s !important;
+  }
+  .stTextInput input:focus, .stTextArea textarea:focus {
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+    outline: none !important;
+  }
 
-  /* ── Truncation warning ── */
-  .warn-truncate { background: #2A2310; border-left: 3px solid #C8973A;
-                   padding: 0.5rem 0.8rem; border-radius: 4px;
-                   font-size: 0.85rem; color: #C8B88A; margin-bottom: 0.5rem; }
+  /* ── File uploader ── */
+  [data-testid="stFileUploader"] {
+    background: var(--bg2) !important;
+    border: 1.5px dashed var(--border2) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1rem !important;
+    transition: border-color 0.15s !important;
+  }
+  [data-testid="stFileUploader"]:hover { border-color: var(--blue) !important; }
 
-  /* ── Credit badge ── */
-  .credit-badge { background: #1A2E4A; border: 1px solid #2E75B6;
-                  border-radius: 20px; padding: 0.2rem 0.8rem;
-                  font-size: 0.85rem; font-weight: 600; color: #6BAED6;
-                  display: inline-block; }
-  .credit-low  { background: #2A1A00; border-color: #FF9800; color: #FFB74D; }
-  .credit-zero { background: #2A1010; border-color: #F44336; color: #EF9A9A; }
+  /* ── Tabs ── */
+  [data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: var(--bg2) !important;
+    border-radius: var(--radius) !important;
+    padding: 3px !important;
+    gap: 2px !important;
+    border: 1px solid var(--border) !important;
+  }
+  [data-testid="stTabs"] [data-baseweb="tab"] {
+    background: transparent !important;
+    border-radius: 6px !important;
+    color: var(--text2) !important;
+    font-weight: 500 !important;
+    font-size: 0.85rem !important;
+    padding: 0.4rem 1rem !important;
+    transition: all 0.15s !important;
+  }
+  [data-testid="stTabs"] [aria-selected="true"] {
+    background: var(--bg3) !important;
+    color: var(--text) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+  }
+  [data-testid="stTabContent"] {
+    border: 1px solid var(--border) !important;
+    border-top: none !important;
+    border-radius: 0 0 var(--radius) var(--radius) !important;
+    padding: 1.25rem !important;
+    background: var(--bg2) !important;
+  }
 
-  /* ── Value prop cards on auth page ── */
-  .value-card { background: #1E2A3A; border-radius: 10px; padding: 0.9rem;
-                text-align: center; }
+  /* ── Expanders ── */
+  [data-testid="stExpander"] {
+    background: var(--bg2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    margin-bottom: 0.5rem !important;
+    overflow: hidden !important;
+    transition: border-color 0.15s !important;
+  }
+  [data-testid="stExpander"]:hover { border-color: var(--border2) !important; }
+  [data-testid="stExpander"] summary {
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    color: var(--text) !important;
+    padding: 0.75rem 1rem !important;
+  }
+  [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+    padding: 0 1rem 1rem 1rem !important;
+    font-size: 0.875rem !important;
+    color: var(--text2) !important;
+    line-height: 1.65 !important;
+  }
+  /* Coaching color accents */
+  [data-testid="stExpander"]:nth-of-type(1) { border-left: 2px solid var(--green) !important; }
+  [data-testid="stExpander"]:nth-of-type(2) { border-left: 2px solid var(--amber) !important; }
+  [data-testid="stExpander"]:nth-of-type(3) { border-left: 2px solid var(--blue) !important; }
+  [data-testid="stExpander"]:nth-of-type(4) { border-left: 2px solid #a78bfa !important; }
+  [data-testid="stExpander"]:nth-of-type(5) { border-left: 2px solid #38bdf8 !important; }
+
+  /* ── Toggles ── */
+  [data-testid="stToggle"] {
+    background: var(--bg2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 0.7rem 1rem !important;
+    margin-bottom: 0.4rem !important;
+    transition: border-color 0.15s !important;
+  }
+  [data-testid="stToggle"]:hover { border-color: var(--blue-bdr) !important; }
+  [data-testid="stToggle"] label, [data-testid="stToggle"] p {
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    color: var(--text) !important;
+  }
 
   /* ── Metrics ── */
   [data-testid="metric-container"] {
-    background: #1A1F2B; border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px; padding: 0.8rem 1rem; }
-
-  /* ── Hide Streamlit branding ── */
-  #MainMenu, footer, header { visibility: hidden; }
-  [data-testid="stToolbar"] { display: none; }
-
-  /* ── Toggles — tarjetas visibles con borde ── */
-  body [data-testid="stToggle"] {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(46,117,182,0.35) !important;
-    border-radius: 12px !important;
-    padding: 0.75rem 1rem !important;
-    margin-bottom: 0.5rem !important;
+    background: var(--bg2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1rem 1.1rem !important;
   }
-  body [data-testid="stToggle"]:hover {
-    background: rgba(46,117,182,0.10) !important;
-    border-color: #2E75B6 !important;
+  [data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
   }
-  body [data-testid="stToggle"] label,
-  body [data-testid="stToggle"] p {
-    font-size: 0.95rem !important;
+  [data-testid="metric-container"] [data-testid="stMetricLabel"] {
+    font-size: 0.78rem !important;
+    color: var(--text2) !important;
     font-weight: 500 !important;
-    color: #BDD9F2 !important;
-  }
-  body [data-testid="stToggle"] [role="switch"] {
-    width: 44px !important;
-    height: 24px !important;
-    min-width: 44px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
   }
 
-  /* ── Expanders (coaching) — más limpios ── */
-  body [data-testid="stExpander"] {
-    border: 1px solid rgba(46,117,182,0.25) !important;
-    border-radius: 10px !important;
-    margin-bottom: 0.5rem !important;
-    overflow: hidden !important;
+  /* ── Alerts ── */
+  [data-testid="stAlert"] {
+    border-radius: var(--radius) !important;
+    border-width: 1px !important;
+    font-size: 0.875rem !important;
   }
-  body [data-testid="stExpander"]:hover {
-    border-color: rgba(46,117,182,0.5) !important;
-  }
-  body [data-testid="stExpander"] summary {
-    font-size: 0.95rem !important;
-    font-weight: 500 !important;
-    color: #C8D8E8 !important;
-    padding: 0.7rem 1rem !important;
-  }
-  body [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
-    padding: 0 1rem 0.9rem 1rem !important;
-    font-size: 0.9rem !important;
-    color: #9EB0C0 !important;
-    line-height: 1.65 !important;
-  }
-  /* Acento color izquierdo por posición */
-  body [data-testid="stExpander"]:nth-of-type(1) { border-left: 3px solid #2E9E6A !important; }
-  body [data-testid="stExpander"]:nth-of-type(2) { border-left: 3px solid #C8973A !important; }
-  body [data-testid="stExpander"]:nth-of-type(3) { border-left: 3px solid #2E75B6 !important; }
-  body [data-testid="stExpander"]:nth-of-type(4) { border-left: 3px solid #9B59B6 !important; }
-  body [data-testid="stExpander"]:nth-of-type(5) { border-left: 3px solid #5DADE2 !important; }
 
-  /* ── Keyword chips — reemplaza los st.success/warning planos ── */
+  /* ── Progress bar ── */
+  [data-testid="stProgressBar"] > div > div {
+    background: var(--blue) !important;
+    border-radius: 99px !important;
+  }
+  [data-testid="stProgressBar"] > div {
+    background: var(--bg3) !important;
+    border-radius: 99px !important;
+    height: 4px !important;
+  }
+
+  /* ── Radio ── */
+  [data-testid="stRadio"] label { font-size: 0.875rem !important; }
+
+  /* ── Divider ── */
+  hr { border-color: var(--border) !important; margin: 1.25rem 0 !important; }
+
+  /* ── Custom component classes ── */
+  .at-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem 1.2rem;
+    margin-bottom: 0.5rem;
+  }
+  .at-card:hover { border-color: var(--border2); }
+
+  .at-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0.25rem 0.75rem;
+    border-radius: 99px;
+    font-size: 0.78rem; font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .at-badge-blue  { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-bdr); }
+  .at-badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.25); }
+  .at-badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+  .at-badge-red   { background: rgba(239,68,68,0.10); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+
+  .score-explain {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text2);
+    margin-top: 0.5rem;
+    line-height: 1.6;
+  }
+
+  .warn-truncate {
+    background: var(--amber-dim);
+    border-left: 2px solid var(--amber);
+    padding: 0.5rem 0.8rem;
+    border-radius: var(--radius);
+    font-size: 0.83rem;
+    color: var(--amber);
+    margin-bottom: 0.75rem;
+  }
+
   .kw-chip-ok {
-    display: inline-block; padding: 3px 10px; margin: 2px 3px;
-    background: rgba(46,158,106,0.15); color: #5EC98A;
-    border: 1px solid rgba(46,158,106,0.35); border-radius: 14px;
-    font-size: 0.8rem; font-weight: 500;
+    display: inline-block; padding: 2px 10px; margin: 2px 3px;
+    background: var(--green-dim); color: var(--green);
+    border: 1px solid rgba(34,197,94,0.25); border-radius: 99px;
+    font-size: 0.78rem; font-weight: 500;
   }
   .kw-chip-miss {
-    display: inline-block; padding: 3px 10px; margin: 2px 3px;
-    background: rgba(200,151,58,0.15); color: #E0A850;
-    border: 1px solid rgba(200,151,58,0.35); border-radius: 14px;
-    font-size: 0.8rem; font-weight: 500;
+    display: inline-block; padding: 2px 10px; margin: 2px 3px;
+    background: var(--amber-dim); color: var(--amber);
+    border: 1px solid rgba(245,158,11,0.25); border-radius: 99px;
+    font-size: 0.78rem; font-weight: 500;
   }
-  .kw-section { margin-bottom: 0.6rem; }
-  .kw-label { font-size: 0.8rem; font-weight: 600;
-              margin-bottom: 0.35rem; display: block; }
-  .kw-label-ok   { color: #5EC98A; }
-  .kw-label-miss { color: #E0A850; }
+  .kw-section { margin-bottom: 0.7rem; }
+  .kw-label { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.4rem; display: block;
+              text-transform: uppercase; letter-spacing: 0.06em; }
+  .kw-label-ok   { color: var(--green); }
+  .kw-label-miss { color: var(--amber); }
 
-  /* ── ATS badge con punto pulsante ── */
-  .ats-ok-badge {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 7px 14px; border-radius: 20px;
-    background: rgba(46,158,106,0.12);
-    border: 1px solid rgba(46,158,106,0.35);
-    font-size: 0.85rem; font-weight: 500; color: #5EC98A;
+  /* ── ATS live badge ── */
+  .ats-live {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 99px;
+    background: var(--green-dim);
+    border: 1px solid rgba(34,197,94,0.25);
+    font-size: 0.82rem; font-weight: 600; color: var(--green);
   }
   .ats-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #5EC98A; position: relative; flex-shrink: 0;
-  }
-  .ats-dot::before {
-    content: ''; position: absolute; inset: -3px; border-radius: 50%;
-    border: 1.5px solid #5EC98A;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); flex-shrink: 0;
     animation: ats-pulse 2s ease-out infinite;
   }
   @keyframes ats-pulse {
-    0%   { transform: scale(1); opacity: 0.7; }
-    70%  { transform: scale(1.6); opacity: 0; }
-    100% { transform: scale(1.6); opacity: 0; }
+    0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+    50%     { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
   }
 
-  /* ── Prevent flash/fadeoff on widget interaction ── */
+  /* ── Sidebar user block ── */
+  .sb-user {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0.75rem 0.9rem;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 0.9rem;
+  }
+  .sb-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .sb-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .sb-plan { font-size: 0.72rem; color: var(--text3); margin-top: 1px; }
+
+  /* ── Sidebar plan pill ── */
+  .sb-pill {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 99px; font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .sb-pill-free  { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+  .sb-pill-pro   { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+  .sb-pill-admin { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+
+  /* ── Credits bar custom ── */
+  .cred-bar-wrap {
+    background: var(--bg3); border-radius: 99px; height: 4px;
+    margin: 0.4rem 0 0.8rem 0; overflow: hidden;
+  }
+  .cred-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: var(--blue);
+    transition: width 0.4s ease;
+  }
+  .cred-bar-fill.low  { background: var(--amber); }
+  .cred-bar-fill.zero { background: var(--red); }
+
+  /* ── App header ── */
+  .app-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 0 0 1.2rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  .app-logo-row { display: flex; align-items: center; gap: 10px; }
+  .app-title {
+    font-size: 1.3rem; font-weight: 800; letter-spacing: -0.03em;
+    color: var(--text); margin: 0;
+  }
+  .app-beta {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+    background: var(--amber-dim); color: var(--amber);
+    border: 1px solid rgba(245,158,11,0.3);
+    padding: 2px 7px; border-radius: 99px;
+    vertical-align: middle; text-transform: uppercase;
+  }
+  .app-subtitle { font-size: 0.83rem; color: var(--text3); margin: 3px 0 0 0; }
+
+  /* ── Section divider with label ── */
+  .section-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    margin: 1.2rem 0 0.6rem 0;
+  }
+
+  /* ── Guest feature pills ── */
+  .feat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+    margin-bottom: 1.2rem;
+  }
+  .feat-pill {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 0.8rem 0.7rem; text-align: center;
+    transition: border-color 0.15s;
+  }
+  .feat-pill:hover { border-color: var(--blue-bdr); }
+  .feat-pill-icon { font-size: 1.3rem; }
+  .feat-pill-title { font-size: 0.78rem; font-weight: 600; color: var(--text); margin-top: 0.3rem; }
+  .feat-pill-sub   { font-size: 0.68rem; color: var(--text3); margin-top: 0.15rem; }
+
+  /* ── Template download cards ── */
+  .tpl-header {
+    text-align: center; padding: 0.5rem 0 0.3rem 0;
+    font-size: 0.75rem; color: var(--text2);
+  }
+  .tpl-icon { font-size: 1.3rem; display: block; margin-bottom: 0.2rem; }
+  .tpl-name { font-weight: 600; color: var(--text); font-size: 0.8rem; }
+  .tpl-ideal { font-size: 0.68rem; color: var(--text3); margin-top: 0.1rem; }
+
+  /* ── Prevent transition flash ── */
   .stApp { transition: none !important; }
-  [data-testid="stAppViewContainer"] { transition: none !important; }
 
-  /* ── Always show sidebar collapse button ── */
+  /* ── Sidebar collapse ── */
   [data-testid="collapsedControl"] { display: flex !important; }
-  section[data-testid="stSidebar"][aria-expanded="false"] {
-    min-width: 0 !important; width: 0 !important;
-  }
-  section[data-testid="stSidebar"][aria-expanded="false"] + div [data-testid="collapsedControl"] {
-    display: flex !important; opacity: 1 !important;
-  }
 
-  /* ── Pulse animation (scroll hint) ── */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50%       { opacity: 1; }
-  }
+  /* ── Scroll hint ── */
+  @keyframes pulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+  .scroll-hint { animation: pulse 2.5s infinite; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -257,21 +521,42 @@ def sign_in(email: str, password: str) -> tuple[bool, str]:
         return False, "Email o contraseña incorrectos."
 
 def restore_session():
-    """Restore session from stored tokens — keeps user logged in across reruns."""
+    """Restore session from stored tokens — keeps user logged in across reruns.
+    Strategy: try set_session first; if that raises (expired access token)
+    fall back to refresh_session using only the refresh token.
+    """
     if st.session_state.get("user"):
         return
     access  = st.session_state.get("_access_token", "")
     refresh = st.session_state.get("_refresh_token", "")
-    if not access:
+    if not refresh:
         return
+    # ── Attempt 1: set full session (works when access token still valid) ──
+    if access:
+        try:
+            session = supabase.auth.set_session(access, refresh)
+            if session and session.user:
+                st.session_state["user"]    = session.user
+                st.session_state["session"] = session
+                if session.session:
+                    st.session_state["_access_token"]  = session.session.access_token
+                    st.session_state["_refresh_token"] = session.session.refresh_token
+                return
+        except Exception:
+            pass  # access token may be expired — try refresh below
+    # ── Attempt 2: refresh using only the refresh token ───────────────────
     try:
-        session = supabase.auth.set_session(access, refresh)
+        session = supabase.auth.refresh_session(refresh)
         if session and session.user:
             st.session_state["user"]    = session.user
             st.session_state["session"] = session
             if session.session:
                 st.session_state["_access_token"]  = session.session.access_token
                 st.session_state["_refresh_token"] = session.session.refresh_token
+        else:
+            # Both attempts failed — clear stale tokens
+            st.session_state.pop("_access_token", None)
+            st.session_state.pop("_refresh_token", None)
     except Exception:
         st.session_state.pop("_access_token", None)
         st.session_state.pop("_refresh_token", None)
@@ -607,34 +892,35 @@ def show_auth_page():
                 st.session_state.pop(k, None)
             st.rerun()
 
-    st.markdown("""
-<div style="text-align:center;padding:1.5rem 0 0.5rem 0">
-  <div style="font-size:2.5rem;margin-bottom:0.3rem">🎯</div>
-  <h1 style="font-size:1.8rem;font-weight:800;margin:0">CV Optimizer ATS <span style="font-size:0.6rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;border-radius:20px;font-weight:700;vertical-align:middle">BETA</span></h1>
-  <p style="color:#666;font-size:1rem;margin:0.4rem 0 0 0">
-    Sube tu CV completo. Pega la oferta. Descarga el CV listo para enviar.<br>
-    <span style="font-size:0.85rem;color:#999">Tu experiencia, optimizada para cada oportunidad.</span>
+    st.markdown(f"""
+<div style="text-align:center;padding:1.8rem 0 1rem 0">
+  <div style="font-size:2rem;margin-bottom:0.5rem">🎯</div>
+  <h1 style="font-size:1.7rem;font-weight:800;margin:0;letter-spacing:-0.03em;color:var(--text)">
+    Analyze-This <span class="app-beta">Beta</span>
+  </h1>
+  <p style="color:var(--text3);font-size:0.9rem;margin:0.5rem 0 0 0">
+    Sube tu CV. Pega la oferta. Descarga listo para enviar.
   </p>
 </div>
 """, unsafe_allow_html=True)
 
     # Value prop — why register
     st.markdown("""
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8rem;margin-bottom:1.2rem">
-  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
-    <div style="font-size:1.4rem">📄</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">5 análisis gratis</div>
-    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">al mes, sin tarjeta</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.2rem">
+  <div class="feat-pill">
+    <div class="feat-pill-icon">📄</div>
+    <div class="feat-pill-title">5 análisis gratis</div>
+    <div class="feat-pill-sub">al mes, sin tarjeta</div>
   </div>
-  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
-    <div style="font-size:1.4rem">🎨</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">4 templates</div>
-    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">listos para enviar</div>
+  <div class="feat-pill">
+    <div class="feat-pill-icon">🎨</div>
+    <div class="feat-pill-title">4 templates</div>
+    <div class="feat-pill-sub">listos para enviar</div>
   </div>
-  <div style="background:rgba(46,117,182,0.15);border:1px solid rgba(46,117,182,0.3);border-radius:10px;padding:0.9rem;text-align:center">
-    <div style="font-size:1.4rem">🎤</div>
-    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Coaching incluido</div>
-    <div style="font-size:0.72rem;color:#888;margin-top:0.2rem">carta + entrevista</div>
+  <div class="feat-pill">
+    <div class="feat-pill-icon">🎤</div>
+    <div class="feat-pill-title">Coaching incluido</div>
+    <div class="feat-pill-sub">carta + entrevista</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -693,18 +979,16 @@ def show_auth_page():
 
     with tab_signup:
         st.markdown("""
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.8rem">
-  <div style="background:rgba(46,117,182,0.1);border:1px solid rgba(46,117,182,0.25);
-      border-radius:8px;padding:0.7rem;text-align:center">
-    <div style="font-size:0.8rem;font-weight:600;color:#6BAED6">Sin código</div>
-    <div style="font-size:1.3rem;font-weight:800;color:#fff">5</div>
-    <div style="font-size:0.72rem;color:#888">análisis/mes</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.9rem">
+  <div class="at-card" style="text-align:center">
+    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Sin código</div>
+    <div style="font-size:1.8rem;font-weight:800;color:var(--text);margin:0.2rem 0">5</div>
+    <div style="font-size:0.75rem;color:var(--text3)">análisis / mes</div>
   </div>
-  <div style="background:rgba(200,151,58,0.12);border:1px solid rgba(200,151,58,0.35);
-      border-radius:8px;padding:0.7rem;text-align:center">
-    <div style="font-size:0.8rem;font-weight:600;color:#E0B060">Con código</div>
-    <div style="font-size:1.3rem;font-weight:800;color:#fff">10</div>
-    <div style="font-size:0.72rem;color:#888">análisis/mes</div>
+  <div class="at-card" style="text-align:center;border-color:rgba(245,158,11,0.25)">
+    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--amber)">Con código</div>
+    <div style="font-size:1.8rem;font-weight:800;color:var(--text);margin:0.2rem 0">10</div>
+    <div style="font-size:0.75rem;color:var(--text3)">análisis / mes</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -769,17 +1053,23 @@ def show_auth_page():
                     st.error(msg)
 
     st.markdown("---")
-    st.markdown("**Planes disponibles:**")
+    st.markdown('<div class="section-label">Planes</div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
-        with st.container(border=True):
-            st.markdown("**🆓 Free**\n5 análisis/mes\nCV descargable\nAnálisis ATS + coaching")
+        st.markdown("""<div class="at-card">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:0.4rem">🆓 Free</div>
+          <div style="font-size:0.75rem;color:var(--text2);line-height:1.7">5 análisis/mes<br>CV descargable<br>Análisis ATS + coaching</div>
+        </div>""", unsafe_allow_html=True)
     with c2:
-        with st.container(border=True):
-            st.markdown("**⭐ Pro**\n50 análisis/mes\nTodo lo de Free\nHistorial completo")
+        st.markdown("""<div class="at-card" style="border-color:rgba(245,158,11,0.2)">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--amber);margin-bottom:0.4rem">⭐ Pro</div>
+          <div style="font-size:0.75rem;color:var(--text2);line-height:1.7">50 análisis/mes<br>Todo lo de Free<br>Historial completo</div>
+        </div>""", unsafe_allow_html=True)
     with c3:
-        with st.container(border=True):
-            st.markdown("**🏢 Admin**\nUso ilimitado\nPanel de gestión\nVista de todos los usuarios")
+        st.markdown("""<div class="at-card">
+          <div style="font-size:0.8rem;font-weight:700;color:#c084fc;margin-bottom:0.4rem">🏢 Admin</div>
+          <div style="font-size:0.75rem;color:var(--text2);line-height:1.7">Uso ilimitado<br>Panel de gestión<br>Vista de usuarios</div>
+        </div>""", unsafe_allow_html=True)
 
     # Social proof counter
     stats = get_global_stats()
@@ -793,13 +1083,13 @@ def show_auth_page():
 
     st.markdown("---")
     st.markdown("""
-<div style="text-align:center;padding:0.5rem">
+<div style="text-align:center;padding:0.6rem 0">
   <a href="https://ko-fi.com/analyzethis" target="_blank"
      style="display:inline-block;background:#FFDD00;color:#000;font-weight:700;
-     padding:0.5rem 1.2rem;border-radius:8px;text-decoration:none;font-size:0.9rem;">
+     padding:0.45rem 1.2rem;border-radius:8px;text-decoration:none;font-size:0.85rem;">
     ☕ ¿Te fue útil? Apoya en Ko-fi
   </a>
-  <p style="font-size:0.75rem;color:#999;margin-top:0.4rem">
+  <p style="font-size:0.72rem;color:var(--text3);margin-top:0.4rem">
     Ayuda a mantener el servicio gratuito para todos
   </p>
 </div>""", unsafe_allow_html=True)
@@ -1783,24 +2073,25 @@ def build_analysis_pdf(cv_data: dict) -> io.BytesIO:
 # ─── Results display ──────────────────────────────────────────────────────────
 def show_results(cv_data, fn, fs, max_pages):
     st.markdown("---")
-    st.subheader("📊 Análisis de Compatibilidad")
+    st.markdown('<div class="section-label">Análisis de Compatibilidad</div>', unsafe_allow_html=True)
     if cv_data.get("_was_truncated"):
-        st.markdown('<div class="warn-truncate">ℹ️ Tu CV era muy extenso. Se analizaron hasta ~15 páginas de tu historial (las más recientes y relevantes). Si activaste el modo cambio de carrera, se procesó el documento completo.</div>', unsafe_allow_html=True)
-    # Model info kept internal — not shown to user
+        st.markdown('<div class="warn-truncate">ℹ️ CV muy extenso — se analizaron las páginas más recientes. Activa "Cambio de carrera" para procesar el documento completo.</div>', unsafe_allow_html=True)
     ats_detected = cv_data.get("ats_detectado", "")
     ats_ok  = cv_data.get("ats_compatible", True)
     ats_msg = cv_data.get("ats_razon", "")
     score   = cv_data.get("score_match", 0)
-    sc_col  = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+    sc_col  = "#22c55e" if score >= 75 else "#f59e0b" if score >= 55 else "#ef4444"
     bc, sc = st.columns([1,2])
     with bc:
-        if ats_ok: st.success("✅ ATS Compatible")
-        else: st.error("❌ No ATS Compatible")
+        if ats_ok:
+            st.markdown('<div class="ats-live"><div class="ats-dot"></div>ATS Compatible</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.25);font-size:0.82rem;font-weight:600;color:#ef4444">✕ No ATS Compatible</div>', unsafe_allow_html=True)
         if ats_detected:
-            st.caption(f"🎯 ATS detectado: **{ats_detected}**")
+            st.markdown(f'<div style="margin-top:0.5rem"><span class="at-badge at-badge-blue">🎯 {ats_detected}</span></div>', unsafe_allow_html=True)
         if ats_msg: st.caption(ats_msg)
     with sc:
-        st.metric(f"{sc_col} Match con la oferta (estimado por IA)", f"{score}%")
+        st.metric("Match con la oferta (IA)", f"{score}%")
         explain = cv_data.get("score_explicacion","")
         if explain: st.markdown(f'<div class="score-explain">{explain}</div>', unsafe_allow_html=True)
     desglose = cv_data.get("score_desglose",{})
@@ -1833,8 +2124,8 @@ def show_results(cv_data, fn, fs, max_pages):
             with st.expander(cat, expanded=(i==0)):
                 st.markdown(tip_txt)
     st.markdown("---")
-    st.subheader("⬇️ Descarga tu CV optimizado")
-    st.markdown("Elige el template que prefieras — todos usan el mismo análisis, solo cambia el diseño:")
+    st.markdown('<div class="section-label">Descarga tu CV optimizado</div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:0.85rem;color:var(--text2);margin-bottom:1rem">Todos los templates usan el mismo análisis — solo cambia el diseño. Ideal descargar DOCX para editar.</p>', unsafe_allow_html=True)
     nombre = cv_data.get("nombre","cv").replace(" ","_")
 
     # ── Descarga del análisis completo en PDF ─────────────────────────────
@@ -1855,11 +2146,10 @@ def show_results(cv_data, fn, fs, max_pages):
     for col, (tname, builder) in zip([dl1,dl2,dl3,dl4], BUILDERS.items()):
         info = TEMPLATES.get(tname, {})
         with col:
-            st.markdown(f"""<div style="text-align:center;padding:0.4rem 0;
-                font-size:0.78rem;color:#888;margin-bottom:0.3rem">
-                <span style="font-size:1.2rem">{info.get('icon','')}</span><br>
-                <strong style="color:#ccc">{tname}</strong><br>
-                <span style="font-size:0.7rem">{info.get('ideal','')[:25]}</span>
+            st.markdown(f"""<div class="tpl-header">
+                <span class="tpl-icon">{info.get('icon','')}</span>
+                <div class="tpl-name">{tname}</div>
+                <div class="tpl-ideal">{info.get('ideal','')[:22]}</div>
                 </div>""", unsafe_allow_html=True)
             try:
                 docx_buf = builder(cv_data, fn, float(fs))
@@ -1888,9 +2178,8 @@ def show_results(cv_data, fn, fs, max_pages):
 
     st.success("✅ ¡Tu CV optimizado está listo!")
     st.caption(f"Tipografía DOCX: {fn} · {fs}pt · {max_pages} página(s)")
-    st.markdown(f"""<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
-        border-radius:8px;padding:0.6rem 0.9rem;margin-top:0.5rem;font-size:0.75rem;color:#666;line-height:1.5">
-        ⚠️ <strong style="color:#888">Aviso:</strong> {DISCLAIMER_TEXT}
+    st.markdown(f"""<div class="at-card" style="margin-top:0.6rem;font-size:0.72rem;color:var(--text3);line-height:1.5">
+        ⚠️ <strong style="color:var(--text2)">Aviso legal:</strong> {DISCLAIMER_TEXT}
     </div>""", unsafe_allow_html=True)
 
     # ── Feedback inmediato — calidad del CV generado ──────────────────────
@@ -1920,8 +2209,8 @@ def show_results(cv_data, fn, fs, max_pages):
 
     # ── ¿Qué sigue? — herramientas complementarias ─────────────────────────
     st.markdown("---")
-    st.subheader("🚀 ¿Qué sigue? Prepara el resto de tu postulación")
-    st.markdown("Usa el mismo CV y oferta para generar estas herramientas en segundos:")
+    st.markdown('<div class="section-label">¿Qué sigue?</div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:0.85rem;color:var(--text2);margin-bottom:1rem">Prepara el resto de tu postulación en segundos, con el mismo CV y oferta:</p>', unsafe_allow_html=True)
 
     nombre_cv  = cv_data.get("nombre", "")
     titulo_cv  = cv_data.get("titulo_profesional", "")
@@ -1931,28 +2220,34 @@ def show_results(cv_data, fn, fs, max_pages):
     q1, q2, q3 = st.columns(3)
 
     with q1:
-        with st.container(border=True):
-            st.markdown("**📝 Carta de presentación**")
-            st.caption("Menos de 200 palabras, comienza con una idea potente (no 'Me postulo para...')")
-            if st.button("Generar carta", key="btn_carta", use_container_width=True):
-                st.session_state["next_tool"] = "carta"
-                st.rerun()
+        st.markdown("""<div class="at-card">
+          <div style="font-size:1.1rem;margin-bottom:0.3rem">📝</div>
+          <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Carta de presentación</div>
+          <div style="font-size:0.75rem;color:var(--text3)">Menos de 200 palabras. Comienza con una idea potente.</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("Generar carta", key="btn_carta", use_container_width=True):
+            st.session_state["next_tool"] = "carta"
+            st.rerun()
 
     with q2:
-        with st.container(border=True):
-            st.markdown("**🎤 Prep de entrevista**")
-            st.caption("8 preguntas probables + estructura de respuesta basada en tu experiencia")
-            if st.button("Preparar entrevista", key="btn_entrevista", use_container_width=True):
-                st.session_state["next_tool"] = "entrevista"
-                st.rerun()
+        st.markdown("""<div class="at-card">
+          <div style="font-size:1.1rem;margin-bottom:0.3rem">🎤</div>
+          <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Prep de entrevista</div>
+          <div style="font-size:0.75rem;color:var(--text3)">8 preguntas + respuestas en método STAR.</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("Preparar entrevista", key="btn_entrevista", use_container_width=True):
+            st.session_state["next_tool"] = "entrevista"
+            st.rerun()
 
     with q3:
-        with st.container(border=True):
-            st.markdown("**💼 Optimizar LinkedIn**")
-            st.caption("Título, 'Acerca de' y experiencias reescritos para aparecer en búsquedas de reclutadores")
-            if st.button("Optimizar LinkedIn", key="btn_linkedin", use_container_width=True):
-                st.session_state["next_tool"] = "linkedin"
-                st.rerun()
+        st.markdown("""<div class="at-card">
+          <div style="font-size:1.1rem;margin-bottom:0.3rem">💼</div>
+          <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Optimizar LinkedIn</div>
+          <div style="font-size:0.75rem;color:var(--text3)">Título, About y experiencias para reclutadores.</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("Optimizar LinkedIn", key="btn_linkedin", use_container_width=True):
+            st.session_state["next_tool"] = "linkedin"
+            st.rerun()
 
     # Execute selected tool
     next_tool = st.session_state.get("next_tool")
@@ -2128,87 +2423,124 @@ def show_main_app(user, profile):
     font_size   = 10
 
     with st.sidebar:
-        # Account badge — minimal
-        badge_class = "credit-badge"
-        if credits_left == 0:   badge_class = "credit-badge credit-zero"
-        elif credits_left <= 2: badge_class = "credit-badge credit-low"
-        credit_label = "∞ análisis" if plan == "admin" else f"{credits_left} análisis restantes"
-        st.markdown(f'<span class="{badge_class}">{plan.upper()} · {credit_label}</span>', unsafe_allow_html=True)
+        # ── User identity block ────────────────────────────────────────────
+        nombre_sb = profile.get("display_name") or profile.get("email","").split("@")[0]
+        initials  = (nombre_sb[0] if nombre_sb else "?").upper()
+        plan_pill_class = {"admin": "sb-pill-admin", "pro": "sb-pill-pro"}.get(plan, "sb-pill-free")
+        plan_label_map  = {"free": "Free", "pro_code": "Pro", "pro": "Pro", "admin": "Admin"}
+        plan_label      = plan_label_map.get(plan, plan.upper())
+
+        st.markdown(f"""
+<div class="sb-user">
+  <div class="sb-avatar">{initials}</div>
+  <div>
+    <div class="sb-name">{nombre_sb}</div>
+    <div class="sb-plan">
+      <span class="sb-pill {plan_pill_class}">{plan_label}</span>
+      &nbsp;·&nbsp;{profile.get("email","")[:28]}
+    </div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+        # ── Credits ───────────────────────────────────────────────────────
         if plan != "admin":
-            st.progress(min(credits_used / monthly_limit, 1.0), text=f"{credits_used}/{monthly_limit} este mes")
-        if credits_left == 0 and plan != "admin":
-            st.markdown("""<div style="background:#2A1010;border-left:3px solid #F44336;
-                padding:0.5rem 0.7rem;border-radius:4px;font-size:0.82rem;color:#EF9A9A;margin:0.5rem 0">
-                Sin análisis este mes.<br><a href="https://ko-fi.com/analyzethis"
-                style="color:#6BAED6">Apoya en Ko-fi para subir a Pro →</a></div>""",
-                unsafe_allow_html=True)
+            pct = min(credits_used / monthly_limit, 1.0) if monthly_limit else 0
+            bar_class = "zero" if credits_left == 0 else ("low" if credits_left <= 2 else "")
+            st.markdown(f"""
+<div style="margin-bottom:0.8rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span style="font-size:0.75rem;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:0.05em">Análisis este mes</span>
+    <span style="font-size:0.78rem;font-weight:600;color:var(--text2)">{credits_used}<span style="color:var(--text3)">/{monthly_limit}</span></span>
+  </div>
+  <div class="cred-bar-wrap">
+    <div class="cred-bar-fill {bar_class}" style="width:{pct*100:.0f}%"></div>
+  </div>
+  <div style="font-size:0.75rem;color:var(--text3)">{credits_left} restante{'s' if credits_left != 1 else ''}</div>
+</div>""", unsafe_allow_html=True)
+
+            if credits_left == 0:
+                st.markdown("""<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);
+                    border-radius:8px;padding:0.6rem 0.8rem;font-size:0.8rem;color:#ef4444;margin-bottom:0.8rem">
+                    Sin análisis este mes.<br>
+                    <a href="https://ko-fi.com/analyzethis" target="_blank"
+                       style="color:#3b82f6;text-decoration:none;font-weight:500">
+                    ☕ Apoya en Ko-fi → Pro</a></div>""", unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="margin-bottom:0.8rem"><span class="at-badge at-badge-blue">∞ Admin · Ilimitado</span></div>', unsafe_allow_html=True)
+
         if st.session_state.get("api_credits_error"):
             st.warning("Servicio sin saldo.")
             user_key = st.text_input("🔑 Tu API Key", type="password")
             if user_key:
                 st.session_state["user_api_key"] = user_key
 
-        # Regenerate without re-calling Claude
-        if st.session_state.get("cv_data"):
-            st.markdown("---")
-            st.caption("✅ Análisis guardado — puedes cambiar el formato sin gastar un análisis.")
-            if st.button("🔄 Cambiar formato / template", use_container_width=True):
-                st.session_state["regen_docx"] = True
+        st.markdown('<div class="section-label">Mi cuenta</div>', unsafe_allow_html=True)
 
-        # Advanced format settings — hidden by default
-        st.markdown("---")
-        with st.expander("⚙️ Ajustes avanzados"):
-            st.caption("Configuración por defecto optimizada para ATS: 1 página, Calibri 10pt.")
-            max_pages   = st.slider("Páginas máximas", 1, 5, 1)
-            if max_pages > 2:
-                st.caption("⚠️ Más de 2 páginas reduce compatibilidad ATS en muchos sistemas. Úsalo si el rol lo requiere explícitamente.")
-            font_family = st.selectbox("Tipografía",
-                ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0,
-                help="Calibri y Arial son las más amigables con ATS.")
-            font_size   = st.select_slider("Tamaño de letra",
-                options=[9, 10, 10.5, 11, 12], value=10)
+        # ── Name editor — always visible, not in expander ─────────────────
+        current_name = profile.get("display_name") or ""
+        new_name = st.text_input("Nombre / apodo", value=current_name,
+            placeholder="Ej: Rocío, Juan P.", key="sidebar_display_name",
+            help="Como quieres que te llamemos en la app")
+        if st.button("Guardar nombre", key="btn_save_name", use_container_width=True):
+            if new_name.strip():
+                try:
+                    supabase.table("profiles").update({
+                        "display_name": new_name.strip()
+                    }).eq("id", user.id).execute()
+                    st.toast("✅ Nombre actualizado")
+                    st.rerun()
+                except Exception:
+                    st.error("Error al guardar")
 
-        st.markdown("---")
-        with st.expander("🎟️ ¿Tienes un código?"):
-            existing_code = profile.get("activation_code", "")
-            if existing_code:
-                st.success(f"Código activo: **{existing_code}**")
-            else:
-                code_input = st.text_input("Ingresa tu código", key="activate_code_sidebar",
-                    placeholder="Ingresa tu código")
-                if st.button("Activar", key="btn_activate_code"):
+        # ── Activation code ───────────────────────────────────────────────
+        existing_code = profile.get("activation_code", "")
+        if existing_code:
+            st.markdown(f'<div style="margin-top:0.5rem"><span class="at-badge at-badge-amber">🎟 {existing_code}</span></div>', unsafe_allow_html=True)
+        else:
+            with st.expander("🎟️ Tengo un código"):
+                code_input = st.text_input("Código de activación", key="activate_code_sidebar",
+                    placeholder="Ej: ICI2026")
+                if st.button("Activar código", key="btn_activate_code", use_container_width=True):
                     if code_input.strip():
                         ok, msg = validate_and_use_code(user.id, code_input)
                         if ok: st.success(msg); st.rerun()
                         else: st.error(msg)
-        st.markdown("---")
-        with st.expander("👤 Mi nombre"):
-            current_name = profile.get("display_name") or ""
-            new_name = st.text_input("Nombre o apodo", value=current_name,
-                placeholder="Ej: Rocío, Juan P.", key="sidebar_display_name")
-            if st.button("Guardar nombre", key="btn_save_name"):
-                if new_name.strip():
-                    try:
-                        supabase.table("profiles").update({
-                            "display_name": new_name.strip()
-                        }).eq("id", user.id).execute()
-                        st.success("✅ Nombre actualizado")
-                        st.rerun()
-                    except Exception:
-                        st.error("Error al guardar")
+
+        # ── Regenerate without re-calling Claude ──────────────────────────
+        if st.session_state.get("cv_data"):
+            st.markdown('<div class="section-label">Formato</div>', unsafe_allow_html=True)
+            st.caption("Cambia el diseño sin gastar un análisis.")
+            if st.button("🔄 Cambiar template", use_container_width=True):
+                st.session_state["regen_docx"] = True
+
+        # ── Advanced format settings ──────────────────────────────────────
+        st.markdown('<div class="section-label">Ajustes avanzados</div>', unsafe_allow_html=True)
+        with st.expander("⚙️ Formato del CV"):
+            st.caption("Por defecto: 1 página, Calibri 10pt — óptimo para ATS.")
+            max_pages   = st.slider("Páginas máximas", 1, 5, 1)
+            if max_pages > 2:
+                st.caption("⚠️ +2 páginas reduce compatibilidad ATS.")
+            font_family = st.selectbox("Tipografía",
+                ["Calibri","Arial","Georgia","Times New Roman","Trebuchet MS"], index=0)
+            font_size   = st.select_slider("Tamaño de letra",
+                options=[9, 10, 10.5, 11, 12], value=10)
+
         st.markdown("---")
         if st.button("🚪 Cerrar sesión", use_container_width=True):
             sign_out()
-        st.caption("CV Optimizer ATS · Powered by Claude AI")
+        st.markdown('<div style="font-size:0.7rem;color:var(--text3);margin-top:0.5rem;text-align:center">Analyze-This · Powered by Claude</div>', unsafe_allow_html=True)
 
     # ── Header ─────────────────────────────────────────────────────────────
     nombre_usuario = profile.get("display_name") or profile.get("email","").split("@")[0]
     st.markdown(f"""
-<div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
-  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS <span style="font-size:0.65rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;border-radius:20px;font-weight:600;vertical-align:middle;letter-spacing:0.05em">BETA</span></h1>
-  <p style="color:#888;margin:0.2rem 0 0 0;font-size:0.88rem">
-    Hola, <strong style="color:#aaa">{nombre_usuario}</strong> — sube tu CV, pega la oferta, descarga listo.
-  </p>
+<div class="app-header">
+  <div>
+    <div class="app-logo-row">
+      <span style="font-size:1.1rem">🎯</span>
+      <h1 class="app-title">Analyze-This <span class="app-beta">Beta</span></h1>
+    </div>
+    <p class="app-subtitle">Hola, <strong style="color:var(--text2)">{nombre_usuario}</strong> — sube tu CV, pega la oferta, descarga listo.</p>
+  </div>
 </div>""", unsafe_allow_html=True)
 
     # ── Admin panel ────────────────────────────────────────────────────────
@@ -2226,15 +2558,12 @@ def show_main_app(user, profile):
             most_recent = pending[0]
             title_pending = most_recent.get("job_title", "tu última postulación")
             hid_pending   = most_recent.get("id")
-            st.markdown(f"""<div style="background:rgba(200,151,58,0.12);
-                border:1px solid rgba(200,151,58,0.4);border-radius:12px;
-                padding:0.9rem 1.1rem;margin-bottom:1rem">
-                <div style="font-size:0.9rem;font-weight:600;color:#E0B060;margin-bottom:0.4rem">
+            st.markdown(f"""<div class="at-card" style="border-color:rgba(245,158,11,0.25);margin-bottom:1rem">
+                <div style="font-size:0.85rem;font-weight:600;color:var(--amber);margin-bottom:0.3rem">
                     🔔 ¿Cómo te fue con <em>{title_pending}</em>?
                 </div>
-                <div style="font-size:0.82rem;color:#B89A50;margin-bottom:0.7rem">
-                    Tu feedback nos ayuda a mejorar la herramienta para todos.
-                    Solo toma 5 segundos — ¿obtuviste entrevista o respuesta?
+                <div style="font-size:0.78rem;color:var(--text3)">
+                    Tu feedback mejora la herramienta. 5 segundos — ¿obtuviste respuesta?
                 </div>
             </div>""", unsafe_allow_html=True)
 
@@ -2355,19 +2684,16 @@ def show_main_app(user, profile):
     # ── Main optimize button ───────────────────────────────────────────────
     if credits_left == 0 and plan != "admin" and not st.session_state.get("user_api_key"):
         st.button("🚀 Optimizar mi CV", use_container_width=True, disabled=True)
-        st.markdown("""<div style="background:#FFF8E1;border-left:4px solid #FFA000;padding:0.8rem 1rem;border-radius:6px;margin-top:0.5rem">
-        <strong>Agotaste tus análisis del mes 🎯</strong><br>
-        Tu plan Free incluye 10 CVs al mes. ¿Quieres más?<br>
-        <a href="mailto:contacto@analyze-this.app" style="color:#1B6CA8">Escríbenos para subir a Pro →</a>
+        st.markdown("""<div class="at-card" style="border-color:rgba(245,158,11,0.2);margin-top:0.5rem">
+        <strong style="color:var(--amber)">Sin análisis este mes 🎯</strong><br>
+        <span style="font-size:0.83rem;color:var(--text2)">Tu plan Free incluye 10 CVs al mes.<br>
+        <a href="mailto:contacto@analyze-this.app" style="color:var(--blue)">Escríbenos para subir a Pro →</a></span>
         </div>""", unsafe_allow_html=True)
         st.stop()
 
     # Scroll hint if results already exist
     if st.session_state.get("cv_data"):
-        st.markdown("""<div style="text-align:center;color:#666;font-size:0.8rem;
-            padding:0.3rem;animation:pulse 2s infinite">
-            ↓ Resultados disponibles abajo
-            </div>""", unsafe_allow_html=True)
+        st.markdown('<div class="scroll-hint" style="text-align:center;color:var(--text3);font-size:0.78rem;padding:0.3rem">↓ Resultados disponibles abajo</div>', unsafe_allow_html=True)
 
     if st.button("🚀 Optimizar mi CV", use_container_width=True):
         # Resolve job text — cache scraped result to avoid multiple calls
@@ -2466,43 +2792,40 @@ def show_main_app(user, profile):
         show_results(st.session_state["cv_data"], font_family, font_size, max_pages)
 
     st.markdown("---")
-    st.caption("CV Optimizer ATS · Powered by Claude AI · Anthropic")
+    st.markdown('<div style="text-align:center;font-size:0.72rem;color:var(--text3);padding:0.5rem 0">Analyze-This · CV Optimizer ATS · Powered by Claude · Anthropic</div>', unsafe_allow_html=True)
 
 # ─── Guest mode (no login) ────────────────────────────────────────────────────
 def show_guest_mode():
     """Let visitor run one full analysis before asking to register."""
 
     st.markdown(f"""
-<div style="padding:0.3rem 0 1rem 0;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.2rem">
-  <h1 style="font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-0.02em">CV Optimizer ATS
-    <span style="font-size:0.65rem;background:#C8973A;color:#0F1117;padding:0.15rem 0.5rem;
-      border-radius:20px;font-weight:600;vertical-align:middle;letter-spacing:0.05em">BETA</span>
-  </h1>
-  <p style="color:#888;margin:0.2rem 0 0 0;font-size:0.88rem">
-    Sube tu CV, pega la oferta — ve al instante si eres un buen candidato.
-  </p>
+<div class="app-header">
+  <div>
+    <div class="app-logo-row">
+      <span style="font-size:1.1rem">🎯</span>
+      <h1 class="app-title">Analyze-This <span class="app-beta">Beta</span></h1>
+    </div>
+    <p class="app-subtitle">Sube tu CV y la oferta — ve al instante si eres un buen candidato.</p>
+  </div>
 </div>""", unsafe_allow_html=True)
 
     # Show value props
     st.markdown("""
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.7rem;margin-bottom:1.2rem">
-  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
-      border-radius:10px;padding:0.8rem;text-align:center">
-    <div style="font-size:1.4rem">🎯</div>
-    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Score ATS real</div>
-    <div style="font-size:0.7rem;color:#888">% match con la oferta</div>
+<div class="feat-grid">
+  <div class="feat-pill">
+    <div class="feat-pill-icon">🎯</div>
+    <div class="feat-pill-title">Score ATS real</div>
+    <div class="feat-pill-sub">% match con la oferta</div>
   </div>
-  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
-      border-radius:10px;padding:0.8rem;text-align:center">
-    <div style="font-size:1.4rem">🔑</div>
-    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">Keywords exactas</div>
-    <div style="font-size:0.7rem;color:#888">las que el ATS busca</div>
+  <div class="feat-pill">
+    <div class="feat-pill-icon">🔑</div>
+    <div class="feat-pill-title">Keywords exactas</div>
+    <div class="feat-pill-sub">las que el ATS busca</div>
   </div>
-  <div style="background:rgba(46,117,182,0.12);border:1px solid rgba(46,117,182,0.25);
-      border-radius:10px;padding:0.8rem;text-align:center">
-    <div style="font-size:1.4rem">📄</div>
-    <div style="font-size:0.78rem;font-weight:600;color:#6BAED6;margin-top:0.3rem">CV listo</div>
-    <div style="font-size:0.7rem;color:#888">descarga con cuenta gratis</div>
+  <div class="feat-pill">
+    <div class="feat-pill-icon">📄</div>
+    <div class="feat-pill-title">CV listo</div>
+    <div class="feat-pill-sub">descarga con cuenta gratis</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2538,13 +2861,10 @@ def show_guest_mode():
             st.session_state["show_auth"] = True
             st.rerun()
 
-    st.markdown("""<div style="background:rgba(46,117,182,0.08);border:1px solid rgba(46,117,182,0.25);
-        border-radius:10px;padding:0.7rem 1rem;margin:0.5rem 0;font-size:0.85rem;color:#7AAED4">
-        🔓 <strong style="color:#9DC8E8">Con cuenta gratis obtienes:</strong>
+    st.markdown("""<div class="at-card" style="font-size:0.83rem;color:var(--text2);margin:0.6rem 0;border-color:var(--blue-bdr)">
+        🔓 <strong style="color:var(--text)">Con cuenta gratis obtienes:</strong>
         descarga en 4 templates DOCX · carta de presentación · prep de entrevista ·
         optimización LinkedIn · análisis en PDF · hasta 5 usos al mes.
-        <a href="#" onclick="window.parent.postMessage({type:'streamlit:setComponentValue',value:true},'*')"
-           style="color:#6BAED6;text-decoration:underline;margin-left:4px">Registrarse es gratis →</a>
     </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
@@ -2611,7 +2931,7 @@ def show_guest_mode():
             st.error(f"Error: {e}"); st.stop()
 
     st.markdown("---")
-    st.caption("CV Optimizer ATS · analyze-this-v2.streamlit.app")
+    st.markdown('<div style="text-align:center;font-size:0.72rem;color:var(--text3);padding:0.5rem 0">Analyze-This · analyze-this-v2.streamlit.app</div>', unsafe_allow_html=True)
 
 
 def _show_guest_results(cv_data):
@@ -2667,15 +2987,14 @@ def _show_guest_results(cv_data):
     # ── Gate: download requires account ───────────────────────────────────
     st.markdown("---")
     st.markdown("""
-<div style="background:linear-gradient(135deg,rgba(27,79,138,0.2),rgba(200,151,58,0.15));
-  border:1.5px solid rgba(200,151,58,0.4);border-radius:14px;padding:1.5rem;text-align:center">
-  <div style="font-size:2rem;margin-bottom:0.5rem">📥</div>
-  <div style="font-size:1.1rem;font-weight:700;color:#E0B060;margin-bottom:0.4rem">
+<div class="at-card" style="text-align:center;padding:1.8rem;border-color:rgba(245,158,11,0.2)">
+  <div style="font-size:1.8rem;margin-bottom:0.6rem">📥</div>
+  <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:0.35rem">
     Tu CV optimizado está listo para descargar
   </div>
-  <div style="font-size:0.88rem;color:#aaa;margin-bottom:1rem">
-    Crea tu cuenta gratis (10 segundos) y descarga en 4 templates profesionales.<br>
-    Sin tarjeta de crédito · 5 análisis/mes incluidos
+  <div style="font-size:0.83rem;color:var(--text3);margin-bottom:0">
+    Crea tu cuenta gratis y descarga en 4 templates profesionales.<br>
+    <span style="color:var(--text2)">Sin tarjeta · 5 análisis/mes incluidos</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
