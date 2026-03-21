@@ -1,5 +1,5 @@
 """
-Main analysis routes — Phase 2 with auth + credits.
+Main analysis routes — Phase 2 with auth + credits + history.
 """
 import uuid
 import time
@@ -13,8 +13,12 @@ from config import get_settings
 from deps import templates
 from services.claude import optimize_cv
 from services.extractor import extract_pdf, extract_docx, scrape_job_url, is_valid_url
-from services.builder import DOCX_BUILDERS, build_cv_pdf, TEMPLATES_META
-from services.session import get_user_credits, consume_credit
+from services.builder import DOCX_BUILDERS, build_cv_pdf, build_analysis_pdf, TEMPLATES_META
+from services.session import (
+    get_user_credits, consume_credit,
+    save_history, save_guest_analysis,
+    get_public_reviews, get_global_stats,
+)
 
 router = APIRouter()
 
@@ -47,9 +51,18 @@ def _get_result(result_id: str) -> Optional[dict]:
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    user = request.state.user
+    stats = get_global_stats()
+    reviews = get_public_reviews()
+    credits = None
+    if user:
+        credits = await get_user_credits(user["id"])
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "user": request.state.user,
+        "user": user,
+        "credits": credits,
+        "stats": stats,
+        "reviews": reviews,
     })
 
 
@@ -61,6 +74,7 @@ async def analyze(
     job_input: str = Form(""),
     max_pages: int = Form(2),
     font_size: float = Form(11.0),
+    font_family: str = Form("Calibri"),
     career_change: bool = Form(False),
     cv_only: bool = Form(False),
     output_lang: str = Form("es"),
@@ -70,38 +84,32 @@ async def analyze(
 
     if not settings.anthropic_api_key:
         return templates.TemplateResponse("index.html", {
-            "request": request,
-            "user": user,
-            "error": "No se encontró ANTHROPIC_API_KEY. Configura la variable de entorno.",
+            "request": request, "user": user,
+            "error": "No se encontró ANTHROPIC_API_KEY.",
+            "stats": get_global_stats(), "reviews": get_public_reviews(),
         })
 
     # ── Credit / guest limit check ─────────────────────────────────────────────
+    credits = None
     if user:
         credits = await get_user_credits(user["id"])
         if credits["credits_remaining"] <= 0:
-            plan_labels = {
-                "free": "gratuito (5/mes)",
-                "pro_code": "Pro Code (10/mes)",
-                "pro": "Pro (50/mes)",
-            }
+            plan_labels = {"free": "gratuito (5/mes)", "pro_code": "Pro Code (10/mes)", "pro": "Pro (50/mes)"}
             label = plan_labels.get(credits["plan"], credits["plan"])
             return templates.TemplateResponse("index.html", {
-                "request": request,
-                "user": user,
-                "error": (
-                    f"Has usado todos tus análisis del mes — plan {label}. "
-                    "Actualiza tu plan para continuar."
-                ),
+                "request": request, "user": user, "credits": credits,
+                "error": (f"Has usado todos tus análisis del mes — plan {label}. "
+                          "Actualiza tu plan para continuar."),
+                "stats": get_global_stats(), "reviews": get_public_reviews(),
             })
     else:
-        # Guests: 1 free analysis per session
         guest_count = int(request.cookies.get("guest_analyses_count", "0"))
         if guest_count >= 1:
             return templates.TemplateResponse("index.html", {
-                "request": request,
-                "user": user,
+                "request": request, "user": user,
                 "error": "Has agotado tu análisis gratuito. Crea una cuenta para continuar.",
                 "show_auth_modal": True,
+                "stats": get_global_stats(), "reviews": get_public_reviews(),
             })
 
     # ── Extract CV text ────────────────────────────────────────────────────────
@@ -116,24 +124,24 @@ async def analyze(
                 cv_text = extract_docx(file_bytes)
             else:
                 return templates.TemplateResponse("index.html", {
-                    "request": request,
-                    "user": user,
-                    "error": "Formato de CV no soportado. Sube un PDF o DOCX.",
+                    "request": request, "user": user,
+                    "error": "Formato no soportado. Sube PDF o DOCX.",
+                    "stats": get_global_stats(), "reviews": get_public_reviews(),
                 })
         except Exception as e:
             return templates.TemplateResponse("index.html", {
-                "request": request,
-                "user": user,
+                "request": request, "user": user,
                 "error": f"Error al leer el archivo: {e}",
+                "stats": get_global_stats(), "reviews": get_public_reviews(),
             })
     elif cv_text_raw.strip():
         cv_text = cv_text_raw.strip()
 
     if not cv_text:
         return templates.TemplateResponse("index.html", {
-            "request": request,
-            "user": user,
+            "request": request, "user": user,
             "error": "Sube un CV o pega el texto directamente.",
+            "stats": get_global_stats(), "reviews": get_public_reviews(),
         })
 
     # ── Extract job text ───────────────────────────────────────────────────────
@@ -144,10 +152,9 @@ async def analyze(
             job_text = scrape_job_url(job_input)
         except ValueError as e:
             return templates.TemplateResponse("index.html", {
-                "request": request,
-                "user": user,
-                "error": str(e),
+                "request": request, "user": user, "error": str(e),
                 "cv_text_raw": cv_text_raw,
+                "stats": get_global_stats(), "reviews": get_public_reviews(),
             })
     elif job_input:
         job_text = job_input
@@ -169,20 +176,31 @@ async def analyze(
         )
     except Exception as e:
         return templates.TemplateResponse("index.html", {
-            "request": request,
-            "user": user,
+            "request": request, "user": user,
             "error": f"Error al analizar con Claude: {e}",
+            "stats": get_global_stats(), "reviews": get_public_reviews(),
         })
 
+    # Store font settings in cv_data for download route
+    cv_data["_font_family"] = font_family
+    cv_data["_font_size"]   = font_size
     result_id = _store_result(cv_data)
 
-    # ── Consume credit ─────────────────────────────────────────────────────────
+    # ── Save history + consume credit ──────────────────────────────────────────
     if user:
+        save_history(
+            user["id"],
+            cv_data.get("titulo_profesional", cv_data.get("nombre", "")),
+            cv_data.get("score_match", 0),
+            cv_data.get("ats_compatible", True),
+        )
         await consume_credit(user["id"])
+        credits = await get_user_credits(user["id"])
 
     resp = templates.TemplateResponse("results.html", {
         "request": request,
         "user": user,
+        "credits": credits,
         "cv": cv_data,
         "result_id": result_id,
         "templates_meta": TEMPLATES_META,
@@ -199,10 +217,10 @@ async def analyze(
         "model_used": cv_data.get("_model_used", "haiku"),
     })
 
-    # Track guest's free analysis (cookie allows download later)
     if not user:
         resp.set_cookie("guest_analyses_count", "1", max_age=86400, samesite="lax", httponly=False)
         resp.set_cookie("guest_result_id", result_id, max_age=86400, samesite="lax", httponly=False)
+        save_guest_analysis()
 
     return resp
 
@@ -212,7 +230,6 @@ async def download(request: Request, result_id: str, fmt: str = "docx", template
     user = request.state.user
     guest_result_id = request.cookies.get("guest_result_id", "")
 
-    # Auth check: logged in OR downloading their own guest-session result
     if not user and result_id != guest_result_id:
         return RedirectResponse(
             f"/?show_auth=1&next=/download/{result_id}%3Ffmt%3D{fmt}%26template%3D{quote(template)}",
@@ -224,10 +241,19 @@ async def download(request: Request, result_id: str, fmt: str = "docx", template
         raise HTTPException(status_code=404, detail="Resultado expirado. Vuelve a analizar tu CV.")
 
     nombre = cv_data.get("nombre", "CV").replace(" ", "_")
+    fn = cv_data.get("_font_family", "Calibri")
+    fs = float(cv_data.get("_font_size", 11.0))
 
-    if fmt == "docx":
+    if fmt == "analysis_pdf":
+        buf = build_analysis_pdf(cv_data)
+        filename = f"Analisis_ATS_{nombre}.pdf"
+        return StreamingResponse(
+            buf, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    elif fmt == "docx":
         builder = DOCX_BUILDERS.get(template, DOCX_BUILDERS["Clásico"])
-        buf = builder(cv_data)
+        buf = builder(cv_data, fn, fs)
         filename = f"CV_{nombre}_{template}.docx"
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     elif fmt == "pdf":
@@ -235,10 +261,9 @@ async def download(request: Request, result_id: str, fmt: str = "docx", template
         filename = f"CV_{nombre}_{template}.pdf"
         media_type = "application/pdf"
     else:
-        raise HTTPException(status_code=400, detail="Formato no soportado. Usa 'docx' o 'pdf'.")
+        raise HTTPException(status_code=400, detail="Formato no soportado.")
 
     return StreamingResponse(
-        buf,
-        media_type=media_type,
+        buf, media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

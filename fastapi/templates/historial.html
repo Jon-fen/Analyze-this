@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Mi historial · Analyze-This{% endblock %}
+
+{% block content %}
+<div class="results-container">
+
+  <div class="results-nav">
+    <a href="/" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Analizar otro CV
+    </a>
+  </div>
+
+  <div class="candidate-header" style="align-items:flex-start;gap:0">
+    <div class="candidate-info">
+      <h1 class="candidate-name" style="font-size:1.7rem">Mi historial</h1>
+      <p class="candidate-title">Tus últimos 10 análisis · {{ history | length }} registro{% if history | length != 1 %}s{% endif %}</p>
+    </div>
+  </div>
+
+  {% if not history %}
+  <div class="score-explain-card" style="text-align:center;padding:2.5rem 1rem">
+    <p style="font-size:1rem;color:var(--text2)">Aún no tienes análisis en tu historial.</p>
+    <a href="/" class="btn btn-primary" style="margin-top:1rem;display:inline-flex">Analizar mi primer CV</a>
+  </div>
+  {% else %}
+
+  <div class="history-list">
+    {% for item in history %}
+    {% set score = item.score_match or 0 %}
+    {% set score_color = "#16A34A" if score >= 75 else "#D97706" if score >= 55 else "#DC2626" %}
+    <div class="history-item" id="hist-{{ item.id }}">
+      <div class="history-main">
+        <div class="history-left">
+          <span class="history-score" style="background:{{ score_color }}20;color:{{ score_color }};border:1px solid {{ score_color }}40">
+            {{ score }}%
+          </span>
+          <div class="history-info">
+            <strong class="history-job">{{ item.job_title or "Sin título" }}</strong>
+            <span class="history-meta">
+              {{ item.created_at[:10] if item.created_at else "" }}
+              · {% if item.ats_compatible %}
+                <span style="color:var(--green)">ATS ✓</span>
+              {% else %}
+                <span style="color:var(--red)">ATS ✗</span>
+              {% endif %}
+              {% if item.outcome %}
+              · <span class="history-outcome-badge">{{ {
+                  'got_interview': '🎤 Entrevista',
+                  'got_job':       '🎉 Empleo',
+                  'no_response':   '📭 Sin respuesta',
+                  'rejected':      '❌ Rechazado'
+                }.get(item.outcome, item.outcome) }}</span>
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        {% if not item.outcome %}
+        <div class="history-outcome-form">
+          <span style="font-size:0.78rem;color:var(--text3);margin-right:0.5rem">¿Cómo te fue?</span>
+          <select class="select" id="outcome-{{ item.id }}" style="width:auto;font-size:0.8rem;padding:0.3rem 0.6rem">
+            <option value="">Seleccionar…</option>
+            <option value="got_interview">🎤 Obtuve entrevista</option>
+            <option value="got_job">🎉 Conseguí el trabajo</option>
+            <option value="no_response">📭 Sin respuesta</option>
+            <option value="rejected">❌ Rechazado</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="saveOutcome('{{ item.id }}')">Guardar</button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.saveOutcome = async function(histId) {
+  const sel = document.getElementById('outcome-' + histId);
+  const outcome = sel ? sel.value : '';
+  if (!outcome) return;
+
+  const res = await fetch(`/history/${histId}/outcome`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ outcome }),
+  });
+  const data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert('Error al guardar.');
+};
+</script>
+{% endblock %}

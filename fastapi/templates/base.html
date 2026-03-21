@@ -6,14 +6,10 @@
   <title>{% block title %}Analyze-This · CV Optimizer ATS{% endblock %}</title>
   <meta name="description" content="Sube tu CV, pega la oferta, descarga listo para enviar. Supera los filtros ATS.">
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="/static/css/app.css">
-
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -29,26 +25,61 @@
       <nav class="nav-links">
         <a href="/" class="nav-link">Optimizar CV</a>
         <a href="#como-funciona" class="nav-link">Cómo funciona</a>
+
         {% if request.state.user %}
-          <span class="nav-user">Hola, {{ request.state.user.display_name }}</span>
-          <form action="/auth/logout" method="post" style="display:inline;margin:0">
-            <button type="submit" class="btn btn-secondary btn-sm">Salir</button>
-          </form>
+          {# ── Credit badge ── #}
+          {% if credits %}
+            {% if credits.credits_remaining == 0 %}
+              <span class="credit-badge credit-zero">{{ credits.plan.upper() }} · 0/{{ credits.credits_limit }}</span>
+            {% elif credits.credits_remaining <= (credits.credits_limit * 0.5) | int %}
+              <span class="credit-badge credit-low">{{ credits.plan.upper() }} · {{ credits.credits_remaining }}/{{ credits.credits_limit }}</span>
+            {% else %}
+              <span class="credit-badge">{{ credits.plan.upper() }} · {{ credits.credits_remaining }}/{{ credits.credits_limit }}</span>
+            {% endif %}
+          {% endif %}
+
+          {# ── User dropdown ── #}
+          <div class="nav-dropdown">
+            <button class="nav-user-btn" onclick="toggleDropdown()">
+              <span class="nav-user-name">{{ request.state.user.display_name }}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+            <div class="dropdown-menu" id="nav-dropdown-menu">
+              <a href="/historial" class="dropdown-item">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v6l4 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
+                Mi historial
+              </a>
+              <button class="dropdown-item" onclick="openAuthModal('code')">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 4V3a3 3 0 016 0v1" stroke="currentColor" stroke-width="1.4"/></svg>
+                Activar código
+              </button>
+              {% if credits and credits.plan == 'admin' %}
+              <a href="/admin" class="dropdown-item dropdown-item-admin">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1l1.8 3.6L13 5.6l-3 2.9.7 4.1L7 10.4l-3.7 2.2.7-4.1-3-2.9 4.2-.6L7 1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                Panel Admin
+              </a>
+              {% endif %}
+              <div class="dropdown-divider"></div>
+              <form action="/auth/logout" method="post" style="margin:0">
+                <button type="submit" class="dropdown-item dropdown-item-danger">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2a1 1 0 00-1 1v8a1 1 0 001 1h3M9 10l3-3-3-3M12 7H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Cerrar sesión
+                </button>
+              </form>
+            </div>
+          </div>
+
         {% else %}
           <button class="btn btn-primary btn-sm" onclick="openAuthModal()">
-            Entrar con Google
+            Entrar
           </button>
         {% endif %}
       </nav>
     </div>
   </header>
 
-  <!-- Main content -->
-  <main>
-    {% block content %}{% endblock %}
-  </main>
+  <main>{% block content %}{% endblock %}</main>
 
-  <!-- Footer -->
   <footer class="footer">
     <div class="footer-inner">
       <span>© 2026 Analyze-This · CV Optimizer ATS</span>
@@ -73,22 +104,21 @@
           <span style="font-weight:700;font-size:1rem;letter-spacing:-0.02em">Analyze-This</span>
         </div>
         <h2 class="modal-title">Accede a tu cuenta</h2>
-        <p class="modal-sub">5 análisis gratis al mes · Sin tarjeta</p>
+        <p class="modal-sub">5 análisis gratis · 4 templates · Sin tarjeta</p>
       </div>
 
       <!-- Tabs -->
       <div class="modal-tabs" role="tablist">
-        <button class="modal-tab active" role="tab" onclick="switchTab('login')" id="tab-login">Iniciar sesión</button>
-        <button class="modal-tab" role="tab" onclick="switchTab('magic')" id="tab-magic">Magic Link</button>
-        <button class="modal-tab" role="tab" onclick="switchTab('register')" id="tab-register">Crear cuenta</button>
+        <button class="modal-tab active" id="tab-login"    onclick="switchTab('login')">Con contraseña</button>
+        <button class="modal-tab"        id="tab-magic"    onclick="switchTab('magic')">Magic Link</button>
+        <button class="modal-tab"        id="tab-register" onclick="switchTab('register')">Crear cuenta</button>
+        <button class="modal-tab"        id="tab-code"     onclick="switchTab('code')" style="display:none">Código</button>
       </div>
 
-      <!-- Alert area -->
       <div class="modal-alert" id="modal-alert" style="display:none"></div>
 
       <!-- ── Login panel ── -->
       <div class="modal-panel" id="panel-login">
-        <!-- Google OAuth -->
         <button class="btn-google" onclick="loginGoogle()" type="button">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
@@ -98,9 +128,7 @@
           </svg>
           Continuar con Google
         </button>
-
-        <div class="modal-divider"><span>o</span></div>
-
+        <div class="modal-divider"><span>o con email</span></div>
         <form onsubmit="loginEmail(event)">
           <div class="modal-field">
             <label class="field-label">Email</label>
@@ -110,8 +138,17 @@
             <label class="field-label">Contraseña</label>
             <input type="password" class="modal-input" id="login-password" placeholder="••••••••" required autocomplete="current-password">
           </div>
-          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Iniciar sesión</button>
+          <button type="submit" class="btn btn-primary btn-full" id="login-btn" data-label="Iniciar sesión">Iniciar sesión</button>
         </form>
+        <details class="modal-forgot">
+          <summary>¿Olvidaste tu contraseña?</summary>
+          <form onsubmit="resetPassword(event)" style="margin-top:0.75rem">
+            <div class="modal-field">
+              <input type="email" class="modal-input" id="reset-email" placeholder="tu@email.com" required>
+            </div>
+            <button type="submit" class="btn btn-secondary btn-full btn-sm" id="reset-btn" data-label="Enviar link de recuperación">Enviar link de recuperación</button>
+          </form>
+        </details>
       </div>
 
       <!-- ── Magic Link panel ── -->
@@ -122,13 +159,12 @@
             <label class="field-label">Email</label>
             <input type="email" class="modal-input" id="magic-email" placeholder="tu@email.com" required autocomplete="email">
           </div>
-          <button type="submit" class="btn btn-primary btn-full" id="magic-btn">Enviar enlace mágico</button>
+          <button type="submit" class="btn btn-primary btn-full" id="magic-btn" data-label="Enviar enlace mágico">Enviar enlace mágico</button>
         </form>
       </div>
 
       <!-- ── Register panel ── -->
       <div class="modal-panel" id="panel-register" style="display:none">
-        <!-- Google OAuth -->
         <button class="btn-google" onclick="loginGoogle()" type="button">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
@@ -138,12 +174,10 @@
           </svg>
           Registrarse con Google
         </button>
-
         <div class="modal-divider"><span>o con email</span></div>
-
         <form onsubmit="registerEmail(event)">
           <div class="modal-field">
-            <label class="field-label">Nombre (opcional)</label>
+            <label class="field-label">Nombre o apodo (opcional)</label>
             <input type="text" class="modal-input" id="reg-name" placeholder="Tu nombre" autocomplete="name">
           </div>
           <div class="modal-field">
@@ -154,7 +188,27 @@
             <label class="field-label">Contraseña</label>
             <input type="password" class="modal-input" id="reg-password" placeholder="Mínimo 8 caracteres" required minlength="8" autocomplete="new-password">
           </div>
-          <button type="submit" class="btn btn-primary btn-full" id="reg-btn">Crear cuenta gratis</button>
+          <div class="modal-field">
+            <label class="field-label">Confirmar contraseña</label>
+            <input type="password" class="modal-input" id="reg-password2" placeholder="Repite la contraseña" required autocomplete="new-password">
+          </div>
+          <div class="modal-field">
+            <label class="field-label" style="color:var(--text3)">🎟️ Código de activación (opcional)</label>
+            <input type="text" class="modal-input" id="reg-code" placeholder="PROMO2026" autocomplete="off" style="text-transform:uppercase">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="reg-btn" data-label="Crear cuenta gratis">Crear cuenta gratis</button>
+        </form>
+      </div>
+
+      <!-- ── Activate code panel ── -->
+      <div class="modal-panel" id="panel-code" style="display:none">
+        <p class="modal-desc">Ingresa tu código de activación para desbloquear más análisis.</p>
+        <form onsubmit="activateCode(event)">
+          <div class="modal-field">
+            <label class="field-label">Código de activación</label>
+            <input type="text" class="modal-input" id="code-input" placeholder="PROMO2026" required autocomplete="off" style="text-transform:uppercase">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="code-btn" data-label="Activar código">Activar código</button>
         </form>
       </div>
 
@@ -163,30 +217,25 @@
   <!-- ─── End Auth Modal ─────────────────────────────────────────────────────── -->
 
   <script src="/static/js/app.js"></script>
-
-  <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-  <!-- Auth JS -->
   <script>
   (() => {
     const SUPABASE_URL = "{{ SUPABASE_URL | default('') }}";
     const SUPABASE_KEY = "{{ SUPABASE_KEY | default('') }}";
+    const RAILWAY_URL  = "https://analyze-this-production.up.railway.app";
     let _client = null;
 
     function getClient() {
       if (!_client && SUPABASE_URL && SUPABASE_KEY) {
         _client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: {
-            flowType: 'pkce',
-            redirectTo: window.location.origin + '/auth/callback',
-          }
+          auth: { flowType: 'pkce' }
         });
       }
       return _client;
     }
 
-    // ── Modal open/close ──────────────────────────────────────────────────────
+    // ── Modal ─────────────────────────────────────────────────────────────────
     window.openAuthModal = function(tab) {
       document.getElementById('auth-modal').classList.add('open');
       document.body.style.overflow = 'hidden';
@@ -197,20 +246,36 @@
       document.getElementById('auth-modal').classList.remove('open');
       document.body.style.overflow = '';
     };
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeAuthModal();
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAuthModal(); });
+
+    // ── Nav dropdown ──────────────────────────────────────────────────────────
+    window.toggleDropdown = function() {
+      const menu = document.getElementById('nav-dropdown-menu');
+      if (menu) menu.classList.toggle('open');
+    };
+    document.addEventListener('click', e => {
+      const dd = document.querySelector('.nav-dropdown');
+      if (dd && !dd.contains(e.target)) {
+        const menu = document.getElementById('nav-dropdown-menu');
+        if (menu) menu.classList.remove('open');
+      }
     });
 
     // ── Tab switching ─────────────────────────────────────────────────────────
     window.switchTab = function(tab) {
-      ['login', 'magic', 'register'].forEach(t => {
-        document.getElementById('panel-' + t).style.display = t === tab ? '' : 'none';
-        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      ['login', 'magic', 'register', 'code'].forEach(t => {
+        const panel = document.getElementById('panel-' + t);
+        const tabEl = document.getElementById('tab-' + t);
+        if (panel) panel.style.display = t === tab ? '' : 'none';
+        if (tabEl) tabEl.classList.toggle('active', t === tab);
       });
+      // Show code tab button when navigating to it
+      const codeTab = document.getElementById('tab-code');
+      if (codeTab && tab === 'code') codeTab.style.display = '';
       clearAlert();
     };
 
-    // ── Alert helpers ─────────────────────────────────────────────────────────
+    // ── Alerts ────────────────────────────────────────────────────────────────
     function showAlert(msg, type) {
       const el = document.getElementById('modal-alert');
       el.textContent = msg;
@@ -219,25 +284,31 @@
     }
     function clearAlert() {
       const el = document.getElementById('modal-alert');
-      el.style.display = 'none';
-      el.textContent = '';
+      if (el) { el.style.display = 'none'; el.textContent = ''; }
     }
     function setLoading(btnId, loading) {
       const btn = document.getElementById(btnId);
       if (!btn) return;
-      btn.disabled = loading;
-      btn.textContent = loading ? 'Cargando…' : btn.dataset.label || btn.textContent;
-      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+      if (loading) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Cargando…';
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.label || btn.textContent;
+      }
     }
 
-    // ── Persist session server-side ───────────────────────────────────────────
-    async function persistSession(session) {
+    // ── Persist session ───────────────────────────────────────────────────────
+    async function persistSession(session, user) {
       await fetch('/auth/set-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          access_token: session.access_token,
+          access_token:  session.access_token,
           refresh_token: session.refresh_token,
+          user_id:       user?.id || '',
+          email:         user?.email || '',
+          display_name:  user?.user_metadata?.display_name || user?.user_metadata?.full_name || '',
         }),
       });
     }
@@ -245,98 +316,146 @@
     // ── Google OAuth ──────────────────────────────────────────────────────────
     window.loginGoogle = async function() {
       const client = getClient();
-      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      if (!client) { showAlert('Auth no configurado.'); return; }
       try {
         const { error } = await client.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: window.location.origin + '/auth/callback' },
+          options: { redirectTo: RAILWAY_URL + '/auth/callback' },
         });
         if (error) showAlert(error.message);
-      } catch (e) {
-        showAlert('Error al conectar con Google.');
-      }
+      } catch (e) { showAlert('Error al conectar con Google.'); }
     };
 
     // ── Email login ───────────────────────────────────────────────────────────
     window.loginEmail = async function(e) {
       e.preventDefault();
       const client = getClient();
-      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
-      const email = document.getElementById('login-email').value.trim();
+      if (!client) { showAlert('Auth no configurado.'); return; }
+      const email    = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       setLoading('login-btn', true);
       clearAlert();
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
       try {
         const { data, error } = await client.auth.signInWithPassword({ email, password });
+        clearTimeout(timer);
         if (error) { showAlert(error.message); return; }
-        await persistSession(data.session);
+        await persistSession(data.session, data.user);
         window.location.reload();
       } catch (err) {
-        showAlert('Error al iniciar sesión.');
-      } finally {
-        setLoading('login-btn', false);
-      }
+        clearTimeout(timer);
+        showAlert(err.name === 'AbortError' ? 'Tiempo de espera agotado. Intenta de nuevo.' : 'Error al iniciar sesión.');
+      } finally { setLoading('login-btn', false); }
+    };
+
+    // ── Reset password ────────────────────────────────────────────────────────
+    window.resetPassword = async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('reset-email').value.trim();
+      setLoading('reset-btn', true);
+      clearAlert();
+      try {
+        const res = await fetch('/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ email }),
+        });
+        const data = await res.json();
+        if (data.ok) showAlert(data.message, 'success');
+        else showAlert(data.error || 'Error al enviar el email.');
+      } catch { showAlert('Error de conexión.'); }
+      finally { setLoading('reset-btn', false); }
     };
 
     // ── Magic link ────────────────────────────────────────────────────────────
     window.sendMagicLink = async function(e) {
       e.preventDefault();
       const client = getClient();
-      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
+      if (!client) { showAlert('Auth no configurado.'); return; }
       const email = document.getElementById('magic-email').value.trim();
       setLoading('magic-btn', true);
       clearAlert();
       try {
         const { error } = await client.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: window.location.origin + '/auth/callback' },
+          options: { emailRedirectTo: RAILWAY_URL + '/auth/callback' },
         });
         if (error) { showAlert(error.message); return; }
         showAlert('¡Enlace enviado! Revisa tu correo.', 'success');
-      } catch (err) {
-        showAlert('Error al enviar el enlace.');
-      } finally {
-        setLoading('magic-btn', false);
-      }
+      } catch { showAlert('Error al enviar el enlace.'); }
+      finally { setLoading('magic-btn', false); }
     };
 
-    // ── Email register ────────────────────────────────────────────────────────
+    // ── Register ──────────────────────────────────────────────────────────────
     window.registerEmail = async function(e) {
       e.preventDefault();
       const client = getClient();
-      if (!client) { showAlert('Configuración de auth no disponible.'); return; }
-      const email = document.getElementById('reg-email').value.trim();
-      const password = document.getElementById('reg-password').value;
-      const name = document.getElementById('reg-name').value.trim();
+      if (!client) { showAlert('Auth no configurado.'); return; }
+      const email  = document.getElementById('reg-email').value.trim();
+      const pass1  = document.getElementById('reg-password').value;
+      const pass2  = document.getElementById('reg-password2').value;
+      const name   = document.getElementById('reg-name').value.trim();
+      const code   = document.getElementById('reg-code').value.trim().toUpperCase();
+
+      if (pass1 !== pass2) { showAlert('Las contraseñas no coinciden.'); return; }
       setLoading('reg-btn', true);
       clearAlert();
       try {
         const { data, error } = await client.auth.signUp({
-          email,
-          password,
+          email, password: pass1,
           options: { data: name ? { display_name: name, full_name: name } : {} },
         });
         if (error) { showAlert(error.message); return; }
-        // If email confirmation is disabled, session is returned immediately
         if (data.session) {
-          await persistSession(data.session);
+          await persistSession(data.session, data.user);
+          // Apply activation code if provided
+          if (code) {
+            await fetch('/auth/activate-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ code }),
+              credentials: 'include',
+            });
+          }
           window.location.reload();
         } else {
           showAlert('¡Cuenta creada! Revisa tu correo para confirmarla.', 'success');
         }
-      } catch (err) {
-        showAlert('Error al crear la cuenta.');
-      } finally {
-        setLoading('reg-btn', false);
-      }
+      } catch { showAlert('Error al crear la cuenta.'); }
+      finally { setLoading('reg-btn', false); }
     };
 
-    // ── Auto-open modal from query param ──────────────────────────────────────
+    // ── Activate code ─────────────────────────────────────────────────────────
+    window.activateCode = async function(e) {
+      e.preventDefault();
+      const code = document.getElementById('code-input').value.trim().toUpperCase();
+      setLoading('code-btn', true);
+      clearAlert();
+      try {
+        const res = await fetch('/auth/activate-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ code }),
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showAlert(data.message, 'success');
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showAlert(data.message || 'Código inválido.');
+        }
+      } catch { showAlert('Error de conexión.'); }
+      finally { setLoading('code-btn', false); }
+    };
+
+    // ── Auto-open from query param ─────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('show_auth') === '1') {
         openAuthModal();
-        // Clean the URL
         const url = new URL(window.location.href);
         url.searchParams.delete('show_auth');
         window.history.replaceState({}, '', url.toString());

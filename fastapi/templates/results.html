@@ -181,6 +181,15 @@
       {% endfor %}
     </div>
 
+    <!-- Analysis PDF download -->
+    <div style="margin-top:1rem;text-align:center">
+      <a href="/download/{{ result_id }}?fmt=analysis_pdf"
+         class="btn btn-secondary btn-sm" download>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Descargar análisis completo (PDF)
+      </a>
+    </div>
+
     <!-- Register CTA — only shown to guests -->
     {% if not user %}
     <div class="register-cta">
@@ -191,6 +200,82 @@
       <button class="btn btn-primary" onclick="openAuthModal('register')">Crear cuenta gratis</button>
     </div>
     {% endif %}
+  </div>
+
+  <!-- ── ¿Qué sigue? ── -->
+  <div class="tools-section">
+    <h3 class="section-title-sm">🚀 ¿Qué sigue? Prepara el resto de tu postulación</h3>
+    <p class="section-sub-sm">Usa el mismo análisis para generar estas herramientas en segundos</p>
+
+    <div class="tools-grid">
+
+      <div class="tool-card" id="tool-carta-card">
+        <div class="tool-card-icon">📝</div>
+        <div class="tool-card-body">
+          <strong>Carta de presentación</strong>
+          <span>Menos de 200 palabras, comienza con idea potente (no "Me postulo para...")</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="runTool('carta')" id="btn-carta">Generar carta</button>
+      </div>
+
+      <div class="tool-card" id="tool-entrevista-card">
+        <div class="tool-card-icon">🎤</div>
+        <div class="tool-card-body">
+          <strong>Prep de entrevista</strong>
+          <span>8 preguntas probables + estructura STAR + preguntas para el entrevistador</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="runTool('entrevista')" id="btn-entrevista">Preparar entrevista</button>
+      </div>
+
+      <div class="tool-card" id="tool-linkedin-card">
+        <div class="tool-card-icon">💼</div>
+        <div class="tool-card-body">
+          <strong>Optimizar LinkedIn</strong>
+          <span>Título (220 chars), "Acerca de" (2600 chars) y bullets de experiencia</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="runTool('linkedin')" id="btn-linkedin">Optimizar LinkedIn</button>
+      </div>
+
+    </div>
+
+    <!-- Tool result area -->
+    <div id="tool-result" style="display:none" class="tool-result-card">
+      <div class="tool-result-header">
+        <span id="tool-result-label" class="tool-result-title"></span>
+        <button class="btn btn-sm btn-secondary" id="tool-pdf-btn" onclick="downloadToolPdf()">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Descargar PDF
+        </button>
+      </div>
+      <div id="tool-result-text" class="tool-result-body"></div>
+    </div>
+  </div>
+
+  <!-- ── Feedback ── -->
+  <div class="feedback-section">
+    <details class="feedback-details">
+      <summary class="feedback-summary">⭐ ¿El CV generado se ve bien? <span class="feedback-hint">(30 seg)</span></summary>
+      <div class="feedback-body">
+        <p class="modal-desc">Tu opinión mejora la herramienta.<br><small style="color:var(--text3)">Para reportar si conseguiste entrevista o trabajo, ve a tu historial.</small></p>
+        <div class="star-rating" id="star-rating">
+          {% for i in range(1, 6) %}
+          <button type="button" class="star-btn" data-value="{{ i }}" onclick="setRating({{ i }})">★</button>
+          {% endfor %}
+        </div>
+        <textarea class="textarea" id="fb-comment" placeholder="¿Qué mejorarías del CV generado? ¿Faltó algo?" rows="3" style="margin-top:0.75rem"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="sendFeedback()">Enviar opinión</button>
+        <div id="fb-msg" style="display:none;margin-top:0.5rem;font-size:0.82rem"></div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── Disclaimer ── -->
+  <div class="disclaimer-block">
+    Este documento fue generado automáticamente por <strong>Analyze-This · CV Optimizer ATS</strong>
+    usando inteligencia artificial (Claude, Anthropic). El contenido se basa exclusivamente
+    en la información provista por el usuario — la herramienta reorganiza y optimiza, pero
+    no verifica ni valida los datos ingresados. El usuario es el único responsable de la
+    exactitud de su CV. <em>analyze-this-production.up.railway.app</em>
   </div>
 
   <!-- ── CV Preview (optimized content) ── -->
@@ -287,16 +372,105 @@
 
 {% block scripts %}
 <script>
-  // Animate score ring on load
-  document.addEventListener('DOMContentLoaded', () => {
-    const ring = document.querySelector('.score-ring');
-    if (ring) {
-      ring.style.animation = 'scoreIn 1s ease-out forwards';
-    }
-    // Animate breakdown bars
-    document.querySelectorAll('.breakdown-bar-fill').forEach(bar => {
-      bar.style.animation = 'barIn 0.8s ease-out forwards';
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const ring = document.querySelector('.score-ring');
+  if (ring) ring.style.animation = 'scoreIn 1s ease-out forwards';
+  document.querySelectorAll('.breakdown-bar-fill').forEach(bar => {
+    bar.style.animation = 'barIn 0.8s ease-out forwards';
   });
+});
+
+// ── CV data for tools ────────────────────────────────────────────────────────
+const CV_DATA = {
+  nombre:  "{{ cv.nombre | e }}",
+  titulo:  "{{ cv.titulo_profesional | e }}",
+  resumen: "{{ cv.resumen_profesional | replace('\n', ' ') | e }}",
+  skills:  "{{ cv.habilidades_tecnicas | join(', ') | e }}",
+};
+const RESULT_ID = "{{ result_id }}";
+let _lastTool = null;
+let _lastText = null;
+
+// ── Tools ────────────────────────────────────────────────────────────────────
+window.runTool = async function(tool) {
+  const btn = document.getElementById('btn-' + tool);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+
+  try {
+    const res = await fetch('/tools/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool, ...CV_DATA }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+
+    _lastTool = tool;
+    _lastText = data.text;
+
+    const resultDiv = document.getElementById('tool-result');
+    document.getElementById('tool-result-label').textContent = data.label;
+    document.getElementById('tool-result-text').textContent = data.text;
+    resultDiv.style.display = 'block';
+    resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    alert('Error al generar: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origLabel || getBtnLabel(tool); }
+  }
+};
+
+function getBtnLabel(tool) {
+  return { carta: 'Generar carta', entrevista: 'Preparar entrevista', linkedin: 'Optimizar LinkedIn' }[tool] || 'Generar';
+}
+
+window.downloadToolPdf = async function() {
+  if (!_lastTool || !_lastText) return;
+  const btn = document.getElementById('tool-pdf-btn');
+  if (btn) btn.textContent = '⏳ Generando PDF…';
+  try {
+    const res = await fetch('/tools/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool: _lastTool, text: _lastText, nombre: CV_DATA.nombre }),
+    });
+    if (!res.ok) throw new Error('Error generando PDF');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${_lastTool}_${CV_DATA.nombre.replace(/ /g,'_')}.pdf`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch (e) { alert('Error al descargar: ' + e.message); }
+  finally { if (btn) btn.textContent = 'Descargar PDF'; }
+};
+
+// ── Feedback stars ────────────────────────────────────────────────────────────
+let _rating = 5;
+window.setRating = function(val) {
+  _rating = val;
+  document.querySelectorAll('.star-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i < val);
+  });
+};
+// Initialize all 5 stars active
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.add('active'));
+});
+
+window.sendFeedback = async function() {
+  const comment = document.getElementById('fb-comment').value.trim();
+  const msgEl   = document.getElementById('fb-msg');
+  try {
+    const res = await fetch('/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: _rating, comment, job_title: CV_DATA.titulo }),
+    });
+    const data = await res.json();
+    msgEl.textContent = data.ok ? '¡Gracias! 🙏 Recuerda volver al historial para reportar si consigues entrevista.' : 'Error al enviar.';
+    msgEl.style.color  = data.ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display = 'block';
+  } catch { msgEl.textContent = 'Error de conexión.'; msgEl.style.display = 'block'; }
+};
 </script>
 {% endblock %}
