@@ -43,8 +43,7 @@ async def set_session(request: Request):
 @router.get("/callback", response_class=HTMLResponse)
 async def auth_callback(request: Request):
     settings = get_settings()
-    return templates.TemplateResponse("auth_callback.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "auth_callback.html", {
         "SUPABASE_URL": settings.supabase_url,
         "SUPABASE_KEY": settings.supabase_key,
         "RAILWAY_URL": RAILWAY_URL,
@@ -75,8 +74,7 @@ async def reset_password(email: str = Form(...)):
 @router.get("/update-password", response_class=HTMLResponse)
 async def update_password_form(request: Request):
     settings = get_settings()
-    return templates.TemplateResponse("update_password.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "update_password.html", {
         "SUPABASE_URL": settings.supabase_url,
         "SUPABASE_KEY": settings.supabase_key,
     })

@@ -32,8 +32,7 @@ async def admin_panel(request: Request):
     users     = get_admin_users()
     codes     = get_all_codes()
     feedbacks = get_all_feedback()
-    return templates.TemplateResponse("admin.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin.html", {
         "user": request.state.user,
         "stats": stats,
         "users": users,

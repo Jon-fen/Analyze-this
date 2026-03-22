@@ -72,8 +72,7 @@ async def index(request: Request):
     stats = get_global_stats()
     reviews = get_public_reviews()
     show_auth = request.query_params.get("show_auth") == "1"
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "stats": stats,
         "reviews": reviews,
@@ -107,8 +106,7 @@ async def analyze(
     save_cv_copy_bool = save_cv_copy_toggle is not None and save_cv_copy_toggle.lower() not in ("false", "0", "")
 
     def _err(msg, cv_text_raw_val=""):
-        return templates.TemplateResponse("index.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "index.html", {
             "user": user,
             "error": msg,
             "cv_text_raw": cv_text_raw_val,
@@ -208,8 +206,7 @@ async def analyze(
         save_guest_analysis()
 
     # ── Build response ─────────────────────────────────────────────────────────
-    response = templates.TemplateResponse("results.html", {
-        "request": request,
+    response = templates.TemplateResponse(request, "results.html", {
         "user": user,
         "cv": cv_data,
         "result_id": result_id,

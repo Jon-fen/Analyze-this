@@ -16,8 +16,7 @@ async def historial(request: Request):
     if not user:
         return RedirectResponse(url="/?show_auth=1", status_code=303)
     history = get_history(user["id"])
-    return templates.TemplateResponse("historial.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "historial.html", {
         "user": user,
         "history": history,
     })
