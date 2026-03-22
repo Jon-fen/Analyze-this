@@ -3,6 +3,7 @@ Supabase data layer — auth, credits, history, feedback, admin, codes.
 """
 from __future__ import annotations
 import json
+import httpx
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -355,7 +356,7 @@ def toggle_code(code_id, active: bool) -> bool:
 def get_admin_users() -> list:
     try:
         res = (
-            _sb().table("profiles")
+            _sb_admin().table("profiles")
             .select("*")
             .order("created_at", desc=True)
             .limit(20)
@@ -406,44 +407,74 @@ def admin_assign_code(user_id: str, code: str) -> Tuple[bool, str]:
         return False, str(e)
 
 
+def _auth_admin_headers() -> dict:
+    """Returns headers for direct Supabase auth admin REST calls."""
+    s = get_settings()
+    key = s.supabase_service_key
+    return {
+        "Authorization": f"Bearer {key}",
+        "apikey": key,
+        "Content-Type": "application/json",
+    }
+
+
+def _auth_admin_url(path: str) -> str:
+    s = get_settings()
+    return f"{s.supabase_url}/auth/v1/admin/{path}"
+
+
 def admin_send_reset(user_email: str) -> Tuple[bool, str]:
     """Send password reset email to a user via Supabase admin API."""
     try:
         s = get_settings()
         if not s.supabase_service_key:
             return False, "SUPABASE_SERVICE_KEY no configurada"
-        sb = _sb_admin()
-        sb.auth.admin.generate_link({
-            "type": "recovery",
-            "email": user_email,
-        })
+        resp = httpx.post(
+            _auth_admin_url("generate_link"),
+            headers=_auth_admin_headers(),
+            json={"type": "recovery", "email": user_email},
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            return False, resp.text
         return True, ""
     except Exception as e:
         return False, str(e)
 
 
 def admin_ban_user(user_id: str, ban: bool) -> Tuple[bool, str]:
-    """Ban or unban a user via Supabase auth admin."""
+    """Ban or unban a user via Supabase auth admin REST API."""
     try:
         s = get_settings()
         if not s.supabase_service_key:
             return False, "SUPABASE_SERVICE_KEY no configurada"
-        sb = _sb_admin()
         ban_duration = "876600h" if ban else "none"
-        sb.auth.admin.update_user_by_id(user_id, {"ban_duration": ban_duration})
+        resp = httpx.put(
+            _auth_admin_url(f"users/{user_id}"),
+            headers=_auth_admin_headers(),
+            json={"ban_duration": ban_duration},
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            return False, resp.text
         return True, ""
     except Exception as e:
         return False, str(e)
 
 
 def admin_delete_user(user_id: str) -> Tuple[bool, str]:
-    """Permanently delete a user (auth + profile)."""
+    """Permanently delete a user (auth + profile) via Supabase admin REST API."""
     try:
         s = get_settings()
         if not s.supabase_service_key:
             return False, "SUPABASE_SERVICE_KEY no configurada"
-        sb = _sb_admin()
-        sb.auth.admin.delete_user(user_id)
+        resp = httpx.delete(
+            _auth_admin_url(f"users/{user_id}"),
+            headers=_auth_admin_headers(),
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            return False, resp.text
         return True, ""
     except Exception as e:
         return False, str(e)
