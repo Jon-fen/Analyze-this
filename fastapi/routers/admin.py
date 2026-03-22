@@ -10,7 +10,7 @@ from services.session import (
     get_global_stats, get_admin_users, update_user_plan, reset_user_credits,
     get_all_codes, create_code, toggle_code, admin_assign_code,
     get_all_feedback, approve_feedback,
-    admin_send_reset, admin_ban_user, admin_delete_user,
+    admin_send_reset, admin_ban_user, admin_delete_user, admin_fix_orphan,
     PLAN_LIMITS, _sb_admin,
 )
 from services.email_service import send_notification_email
@@ -107,6 +107,15 @@ async def delete_user(request: Request, user_id: str):
     if not _require_admin(request):
         return JSONResponse({"ok": False, "error": "no auth"})
     ok, err = admin_delete_user(user_id)
+    return JSONResponse({"ok": ok, "error": err})
+
+
+@router.post("/user/fix-orphan")
+async def fix_orphan_user(request: Request, email: str = Form(...)):
+    """Delete orphan Auth user (no profile) so email can re-register."""
+    if not _require_admin(request):
+        return JSONResponse({"ok": False, "error": "no auth"})
+    ok, err = admin_fix_orphan(email)
     return JSONResponse({"ok": ok, "error": err})
 
 

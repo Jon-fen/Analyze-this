@@ -170,6 +170,20 @@
     {% endif %}
   </div>
 
+  <!-- Fix orphan user -->
+  <div class="breakdown-card" style="margin-top:1.5rem">
+    <h3 class="card-title">🔧 Limpiar usuario huérfano</h3>
+    <p style="font-size:0.83rem;color:var(--text3);margin-bottom:0.75rem">
+      Úsalo cuando un email dice "ya registrado" pero no aparece en el panel.
+      Solo elimina usuarios sin profile en la base de datos.
+    </p>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
+      <input type="email" id="orphanEmail" class="modal-input" placeholder="email@ejemplo.com" style="max-width:280px">
+      <button class="btn btn-secondary btn-sm" onclick="fixOrphan()">Limpiar huérfano</button>
+    </div>
+    <div id="fixOrphanResult" style="margin-top:0.5rem;font-size:0.83rem"></div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -275,6 +289,16 @@ window.approveFb = async function(fbId, approve) {
   const url = `/admin/feedback/${fbId}/${approve ? 'approve' : 'reject'}`;
   const data = await fetch(url, { method: 'POST' }).then(r => r.json());
   if (data.ok) window.location.reload(); else showAdminMsg('Error', false);
+};
+
+window.fixOrphan = async function() {
+  const email = document.getElementById('orphanEmail').value.trim();
+  if (!email) return;
+  const fd = new FormData(); fd.append('email', email);
+  const data = await fetch('/admin/user/fix-orphan', { method: 'POST', body: fd }).then(r => r.json());
+  const el = document.getElementById('fixOrphanResult');
+  el.textContent = data.ok ? '✅ ' + (data.error || 'Listo') : '❌ ' + data.error;
+  el.style.color = data.ok ? 'var(--green)' : 'var(--red)';
 };
 </script>
 {% endblock %}

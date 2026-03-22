@@ -3,6 +3,7 @@ Supabase data layer — auth, credits, history, feedback, admin, codes.
 """
 from __future__ import annotations
 import json
+import re
 import httpx
 from datetime import datetime, timezone
 from typing import Optional, Tuple
@@ -286,9 +287,18 @@ def get_global_stats() -> dict:
 
 # ─── Activation codes ─────────────────────────────────────────────────────────
 
+def _sanitize_code(raw: str) -> str:
+    """Extract code from a referral URL or clean the raw code string."""
+    raw = (raw or "").strip()
+    match = re.search(r'[?&]ref=([A-Z0-9]+)', raw, re.IGNORECASE)
+    if match:
+        return match.group(1).upper()
+    return re.sub(r'[^A-Z0-9]', '', raw.upper())[:20]
+
+
 def validate_and_use_code(user_id: str, code: str) -> Tuple[bool, str]:
     try:
-        code = code.strip().upper()
+        code = _sanitize_code(code)
         sb = _sb()
         res = sb.table("activation_codes").select("*").eq("code", code).maybe_single().execute()
         row = res.data
@@ -477,18 +487,70 @@ def admin_ban_user(user_id: str, ban: bool) -> Tuple[bool, str]:
 
 
 def admin_delete_user(user_id: str) -> Tuple[bool, str]:
-    """Permanently delete a user (auth + profile) via Supabase admin REST API."""
+    """Permanently delete a user: related tables + profiles + Supabase Auth."""
     try:
         s = get_settings()
         if not s.supabase_service_key:
             return False, "SUPABASE_SERVICE_KEY no configurada"
+        sb = _sb_admin()
+        # 1. Clean related tables (order matters for FK)
+        for table in ("cv_storage", "feedback", "history"):
+            try:
+                sb.table(table).delete().eq("user_id", user_id).execute()
+            except Exception:
+                pass
+        # 2. Delete profile
+        try:
+            sb.table("profiles").delete().eq("id", user_id).execute()
+        except Exception:
+            pass
+        # 3. Delete from Supabase Auth via REST API
         resp = httpx.delete(
             _auth_admin_url(f"users/{user_id}"),
             headers=_auth_admin_headers(),
             timeout=10,
         )
+        # 404 = already gone from Auth — still success
+        if resp.status_code >= 400 and resp.status_code != 404:
+            return False, f"Auth delete failed ({resp.status_code}): {resp.text}"
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_fix_orphan(email: str) -> Tuple[bool, str]:
+    """Find orphan user in Auth (no profile) by email and delete from Auth."""
+    try:
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada"
+        resp = httpx.get(
+            _auth_admin_url("users"),
+            headers=_auth_admin_headers(),
+            params={"filter": f"email.eq.{email}"},
+            timeout=10,
+        )
         if resp.status_code >= 400:
             return False, resp.text
-        return True, ""
+        users_data = resp.json()
+        users_list = users_data.get("users", users_data) if isinstance(users_data, dict) else users_data
+        if not users_list:
+            return False, f"No se encontró usuario con email {email} en Auth"
+        user_id = users_list[0].get("id")
+        if not user_id:
+            return False, "No se pudo obtener el ID del usuario"
+        # Verify it's truly an orphan (no profile)
+        sb = _sb_admin()
+        profile = sb.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
+        if profile.data:
+            return False, f"Usuario {email} SÍ tiene profile — usa delete normal desde el panel"
+        del_resp = httpx.delete(
+            _auth_admin_url(f"users/{user_id}"),
+            headers=_auth_admin_headers(),
+            timeout=10,
+        )
+        if del_resp.status_code >= 400 and del_resp.status_code != 404:
+            return False, f"Error eliminando: {del_resp.text}"
+        return True, f"Usuario huérfano {email} eliminado. Ya puede re-registrarse."
     except Exception as e:
         return False, str(e)
