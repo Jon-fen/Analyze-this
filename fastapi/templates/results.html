@@ -223,6 +223,19 @@
       <button class="btn btn-primary" onclick="openAuthModal('register')">Crear cuenta gratis</button>
     </div>
     {% endif %}
+
+    <!-- Copy key data + LinkedIn share -->
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.75rem;align-items:center">
+      <button type="button" class="btn btn-secondary" onclick="copyKeyData(this)">
+        📋 Copiar datos clave para formularios
+      </button>
+      <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fanalyze-this-production.up.railway.app&summary=Optimic%C3%A9%20mi%20CV%20con%20IA%20para%20superar%20filtros%20ATS%20%F0%9F%8E%AF%20Pru%C3%A9balo%20gratis"
+         target="_blank" rel="noopener noreferrer"
+         style="display:inline-flex;align-items:center;gap:6px;background:#0A66C2;color:white;padding:9px 16px;border-radius:8px;font-weight:600;font-size:0.875rem;text-decoration:none">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        Compartir en LinkedIn
+      </a>
+    </div>
   </div>
 
   <!-- ── Tools: ¿Qué sigue? ── -->
@@ -563,10 +576,90 @@ async function sendFeedback() {
   msgEl.classList.remove('hidden');
 }
 
-// Animate score ring
+// FEAT-1: Copy key data
+function copyKeyData(btn) {
+  const data = [
+    'NOMBRE: {{ cv.nombre }}',
+    'TÍTULO: {{ cv.titulo_profesional }}',
+    'EMAIL: {{ cv.email }}',
+    'TELÉFONO: {{ cv.telefono }}',
+    'UBICACIÓN: {{ cv.ubicacion }}',
+    'LINKEDIN: {{ cv.linkedin }}',
+    '',
+    'RESUMEN PROFESIONAL:',
+    '{{ (cv.resumen_profesional or "") | replace("\n", " ") }}',
+    '',
+    'HABILIDADES TÉCNICAS:',
+    '{{ (cv.habilidades_tecnicas or []) | join(", ") }}',
+    '',
+    'COMPETENCIAS:',
+    '{{ (cv.habilidades_blandas or []) | join(", ") }}',
+    '',
+    'IDIOMAS: {{ (cv.idiomas or []) | join(" | ") }}',
+  ].join('\n').trim();
+  const orig = btn.innerHTML;
+  const apply = () => { btn.innerHTML = '✅ ¡Copiado!'; btn.style.background='#10B981'; btn.style.color='white'; setTimeout(()=>{btn.innerHTML=orig;btn.style.background='';btn.style.color='';},2500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(data).then(apply).catch(()=>{ const ta=document.createElement('textarea'); ta.value=data; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); apply(); });
+  else { const ta=document.createElement('textarea'); ta.value=data; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); apply(); }
+}
+
+// FEAT-6: Interactive star rating
+(function(){
+  const row = document.getElementById('star-row');
+  if (!row) return;
+  const stars = row.querySelectorAll('.star-btn');
+  const input = document.getElementById('fb-rating');
+  const labels = {1:'Muy malo',2:'Malo',3:'Aceptable',4:'Bueno',5:'Excelente'};
+  let current = 0;
+  stars.forEach((s,i) => {
+    s.style.cssText = 'font-size:1.8rem;color:#D1D5DB;cursor:pointer;transition:color .1s,transform .1s;user-select:none;background:none;border:none;padding:0';
+    s.onmouseover = () => { stars.forEach((x,j) => { x.style.color = j<=i ? '#FCD34D' : '#D1D5DB'; x.style.transform = j<=i ? 'scale(1.1)' : 'scale(1)'; }); };
+    s.onmouseout  = () => { stars.forEach((x,j) => { x.style.color = j<current ? '#F59E0B' : '#D1D5DB'; x.style.transform = 'scale(1)'; }); };
+    s.onclick = () => { current = i+1; input.value = current; stars.forEach((x,j) => { x.style.color = j<current ? '#F59E0B' : '#D1D5DB'; }); };
+  });
+})();
+
+// FEAT-4: Animations on load
 document.addEventListener('DOMContentLoaded', () => {
+  const scoreValue = {{ cv.score_match | default(0) }};
+
+  // Score ring animation
   const ring = document.querySelector('.score-ring');
   if (ring) ring.style.animation = 'scoreIn 1s ease-out forwards';
+
+  // Score value counter from 0
+  const scoreEl = document.querySelector('.score-value');
+  if (scoreEl) {
+    scoreEl.textContent = '0%';
+    let cur = 0;
+    const step = scoreValue / (1200 / 16);
+    const timer = setInterval(() => {
+      cur = Math.min(cur + step, scoreValue);
+      scoreEl.textContent = Math.round(cur) + '%';
+      if (cur >= scoreValue) clearInterval(timer);
+    }, 16);
+  }
+
+  // Breakdown bars with staggered delay
+  document.querySelectorAll('.breakdown-bar-fill').forEach((bar, i) => {
+    const target = getComputedStyle(bar).getPropertyValue('--bar-w').trim() || '0%';
+    bar.style.setProperty('--bar-w', '0%');
+    setTimeout(() => {
+      bar.style.transition = 'width 0.8s ease';
+      bar.style.setProperty('--bar-w', target);
+    }, 300 + i * 150);
+  });
+
+  // Keyword chips fade-in
+  document.querySelectorAll('.kw-chip').forEach((chip, i) => {
+    chip.style.opacity = '0';
+    chip.style.transform = 'translateY(6px)';
+    setTimeout(() => {
+      chip.style.transition = 'opacity 0.3s, transform 0.3s';
+      chip.style.opacity = '1';
+      chip.style.transform = 'translateY(0)';
+    }, 800 + i * 30);
+  });
 });
 </script>
 {% endblock %}
