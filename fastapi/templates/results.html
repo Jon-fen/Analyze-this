@@ -408,6 +408,23 @@ const CV_DATA = {
 let _lastTool = '';
 let _lastText = '';
 
+function _mdToHtml(text) {
+  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/^### (.+)$/gm, '<h4 style="margin:0.75rem 0 0.2rem;font-size:0.9rem;color:var(--text1)">$1</h4>');
+  s = s.replace(/^## (.+)$/gm, '<h3 style="margin:1rem 0 0.25rem;font-size:1rem;color:var(--text1)">$1</h3>');
+  s = s.replace(/^# (.+)$/gm, '<h2 style="margin:1rem 0 0.3rem;color:var(--text1)">$1</h2>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0">');
+  s = s.split('\n\n').map(p => p.trim() ? `<p style="margin:0 0 0.6rem;line-height:1.6">${p}</p>` : '').join('');
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
+const _TOOL_LOADING_HTML = `<div style="display:flex;align-items:center;gap:0.75rem;padding:1.25rem 0;color:var(--text3);font-size:0.875rem">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;flex-shrink:0"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+  <span>Generando con IA… (~15 segundos)</span>
+</div>`;
+
 async function runTool(tool) {
   const btn = document.getElementById('btn-' + tool);
   const resultCard = document.getElementById('tool-result-card');
@@ -416,6 +433,12 @@ async function runTool(tool) {
 
   btn.disabled = true;
   btn.textContent = 'Generando…';
+
+  // Show loading immediately
+  resultLabel.textContent = 'Procesando…';
+  resultBody.innerHTML = _TOOL_LOADING_HTML;
+  resultCard.classList.remove('hidden');
+  resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
     const res = await fetch('/tools/generate', {
@@ -430,11 +453,10 @@ async function runTool(tool) {
     _lastText = data.text;
 
     resultLabel.textContent = data.label;
-    resultBody.textContent = data.text;
-    resultCard.classList.remove('hidden');
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    resultBody.innerHTML = _mdToHtml(data.text);
   } catch(e) {
-    alert('Error: ' + e.message);
+    resultLabel.textContent = 'Error';
+    resultBody.innerHTML = `<p style="color:var(--red);font-size:0.875rem">Error: ${e.message}</p>`;
   }
   btn.disabled = false;
   btn.textContent = 'Generar';
