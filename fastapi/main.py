@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     s = get_settings()
     templates.env.globals["SUPABASE_URL"] = s.supabase_url
     templates.env.globals["SUPABASE_KEY"] = s.supabase_key
+    templates.env.globals["APP_VERSION"] = "2.0.0"
     yield
 
 
