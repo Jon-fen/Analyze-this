@@ -7,34 +7,39 @@
 <section class="hero">
   <div class="hero-inner">
     <div class="hero-text">
-      <div class="hero-badge">
-        <span class="badge-dot"></span>
-        <span>Detectando ATS: </span><span class="ats-rotator" id="ats-rotator">Workday</span>
+      <div class="urgency-pill">
+        <div class="u-dot"></div>
+        <span>El 75% de los CVs son filtrados antes de llegar a un humano</span>
       </div>
       <h1 class="hero-title">
-        Tu CV, listo para <span class="highlight">cada oferta</span>
+        <span class="title-serif">¿Tu CV pasa</span>
+        <span class="title-sans">el filtro ATS?</span>
+        <span class="title-action">Descúbrelo en 30 segundos.</span>
       </h1>
-      <p class="hero-sub">
-        Sube tu CV. Pega la oferta. En segundos tienes un CV adaptado con las keywords exactas
-        que busca ese ATS — y un plan de acción personalizado para postular con confianza.
-      </p>
 
-      <!-- Social proof — live stats -->
-      <div class="social-proof">
+      <!-- Stats strip -->
+      <div class="stats-strip">
         <div class="proof-item">
-          <span class="proof-number">{% if stats %}{{ "{:,}".format(stats.cvs) }}{% else %}10,000+{% endif %}</span>
-          <span class="proof-label">CVs optimizados</span>
+          <span class="stat-num">{% if stats %}{{ "{:,}".format(stats.cvs) }}{% else %}10,000+{% endif %}</span>
+          <span class="stat-lbl">CVs optimizados</span>
         </div>
         <div class="proof-divider"></div>
         <div class="proof-item">
-          <span class="proof-number">{% if stats %}{{ "{:,}".format(stats.users) }}{% else %}1,000+{% endif %}</span>
-          <span class="proof-label">profesionales</span>
+          <span class="stat-num">{% if stats %}{{ "{:,}".format(stats.users) }}{% else %}1,000+{% endif %}</span>
+          <span class="stat-lbl">profesionales</span>
         </div>
         <div class="proof-divider"></div>
         <div class="proof-item">
-          <span class="proof-number">4</span>
-          <span class="proof-label">templates descargables</span>
+          <span class="stat-num">4</span>
+          <span class="stat-lbl">templates descargables</span>
         </div>
+      </div>
+
+      <!-- Trust chips -->
+      <div class="trust-chips">
+        <div class="chip"><div class="chip-ok"></div> Sin tarjeta de crédito</div>
+        <div class="chip"><div class="chip-ok"></div> 5 análisis gratis/mes</div>
+        <div class="chip"><div class="chip-ok"></div> CV no se almacena</div>
       </div>
     </div>
 
@@ -203,6 +208,7 @@
         </details>
 
         <!-- Submit -->
+        <div class="privacy-note">🔒 Tu CV se usa solo para este análisis · No se almacena</div>
         <button type="submit" class="btn btn-primary btn-full btn-lg" id="submit-btn"
           {% if user and user.credits_remaining == 0 %}disabled{% endif %}>
           <span class="btn-text">Analizar mi CV con IA</span>
@@ -211,9 +217,14 @@
               <circle cx="9" cy="9" r="7" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
               <path d="M9 2a7 7 0 0 1 7 7" stroke="white" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Analizando con Claude…
+            Analizando…
           </span>
         </button>
+
+        <div class="ats-strip">
+          <span class="ats-lbl">Motor detectando ATS:</span>
+          <span id="atsRotating" class="ats-val">Workday</span>
+        </div>
 
         <p class="submit-note">Gratis · Sin tarjeta · Resultado en ~15 segundos</p>
 
@@ -422,56 +433,8 @@
       <h2 class="section-title">Lo que dicen los profesionales</h2>
       <p class="section-sub">Más de {{ "{:,}".format(stats.users) if stats else "1,000" }} profesionales ya optimizaron su CV</p>
     </div>
-    <div class="reviews-grid-v2">
-      {% if reviews %}
-        {% for rv in reviews %}
-        <div class="review-card-v2">
-          <div class="review-stars-v2">{{ '★' * (rv.rating or 5) }}{{ '☆' * (5 - (rv.rating or 5)) }}</div>
-          <p class="review-text-v2">"{{ rv.comment }}"</p>
-          <div class="review-author">
-            <div class="review-avatar">{{ (rv.job_title or 'P')[0].upper() }}</div>
-            <div class="review-author-info">
-              <span class="review-author-name">{{ rv.job_title or 'Profesional' }}</span>
-              <span class="review-author-role">{{ (rv.created_at or '')[:7] }}</span>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="review-card-v2">
-          <div class="review-stars-v2">★★★★★</div>
-          <p class="review-text-v2">"Pasé de 2 rechazos a 3 entrevistas en la misma semana. El score ATS me hizo entender exactamente qué le faltaba a mi CV."</p>
-          <div class="review-author">
-            <div class="review-avatar">D</div>
-            <div class="review-author-info">
-              <span class="review-author-name">Diego M.</span>
-              <span class="review-author-role">Desarrollador Full Stack · Santiago</span>
-            </div>
-          </div>
-        </div>
-        <div class="review-card-v2">
-          <div class="review-stars-v2">★★★★★</div>
-          <p class="review-text-v2">"La carta de presentación generada fue mejor que las que yo escribía. Y tardé 30 segundos en tenerla lista para enviar."</p>
-          <div class="review-author">
-            <div class="review-avatar">A</div>
-            <div class="review-author-info">
-              <span class="review-author-name">Andrea R.</span>
-              <span class="review-author-role">Product Manager · Buenos Aires</span>
-            </div>
-          </div>
-        </div>
-        <div class="review-card-v2">
-          <div class="review-stars-v2">★★★★★</div>
-          <p class="review-text-v2">"El prep de entrevista con método STAR me salvó. Llegué preparado para responder exactamente lo que me preguntaron en Workday."</p>
-          <div class="review-author">
-            <div class="review-avatar">C</div>
-            <div class="review-author-info">
-              <span class="review-author-name">Carlos V.</span>
-              <span class="review-author-role">Analista de Datos · Bogotá</span>
-            </div>
-          </div>
-        </div>
-      {% endif %}
+    <div class="reviews-grid-v2" id="reviewsGrid">
+      <!-- Loaded dynamically -->
     </div>
   </div>
 </section>
@@ -576,6 +539,18 @@
 
     </div>
   </div>
+</section>
+
+<!-- ── Bottom CTA ── -->
+<section class="bottom-cta">
+  <p class="bcta-eyebrow">Empieza hoy</p>
+  <h2 class="bcta-title">
+    <span style="font-family:'Playfair Display',serif;font-style:italic;color:#93C5FD">Tu siguiente entrevista </span>
+    <span style="font-family:'Inter',sans-serif;font-weight:700;color:white">empieza aquí.</span>
+  </h2>
+  <p class="bcta-sub">Crea tu cuenta gratis — 5 análisis completos al mes</p>
+  <a href="#" onclick="openAuthModal('register'); return false;" class="bcta-btn">Crear cuenta gratis →</a>
+  <p class="bcta-note">Sin tarjeta · Sin compromisos</p>
 </section>
 
 {% endblock %}
@@ -742,5 +717,36 @@
       }
     }, 80);
   }
+
+  /* ── ATS strip rotator (form) ── */
+  const _ats2 = ['Workday','Buk','Greenhouse','SAP SuccessFactors','Lever','Rankmi','Talently'];
+  let _i2 = 0;
+  const atsRotEl = document.getElementById('atsRotating');
+  if (atsRotEl) {
+    setInterval(() => {
+      atsRotEl.style.opacity = '0';
+      setTimeout(() => { _i2 = (_i2+1)%_ats2.length; atsRotEl.textContent = _ats2[_i2]; atsRotEl.style.opacity = '1'; }, 300);
+    }, 2200);
+  }
+
+  /* ── Dynamic reviews ── */
+  fetch('/api/reviews').then(r => r.json()).then(reviews => {
+    const grid = document.getElementById('reviewsGrid');
+    if (!grid) return;
+    grid.innerHTML = reviews.map(r => {
+      const stars = r.rating || 5;
+      return `<div class="review-card-v2">
+        <div class="review-stars-v2">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</div>
+        <p class="review-text-v2">"${r.comment}"</p>
+        <div class="review-author">
+          <div class="review-avatar">${(r.job_title||'P')[0].toUpperCase()}</div>
+          <div class="review-author-info">
+            <span class="review-author-name">${r.job_title||'Profesional'}</span>
+            <span class="review-author-role">${(r.created_at||'').slice(0,7)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }).catch(() => {});
 </script>
 {% endblock %}
