@@ -189,11 +189,30 @@
     {% endif %}
 
     <!-- Analysis PDF (available to everyone) -->
-    <div style="margin-top:1rem">
+    <div style="margin-top:1rem; display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center">
       <a href="/download/{{ result_id }}?fmt=analysis_pdf" class="btn btn-secondary" download>
         📄 Descargar análisis completo (PDF)
       </a>
+      {% if user %}
+      <button class="btn btn-secondary" onclick="toggleEmailBox('analysis')" id="btn-email-analysis">
+        ✉️ Enviar por email
+      </button>
+      {% endif %}
     </div>
+
+    {% if user %}
+    <!-- Email send box for analysis PDF -->
+    <div class="email-send-box hidden" id="email-box-analysis">
+      <div style="flex:1;min-width:200px">
+        <label class="field-label">Enviar análisis PDF a:</label>
+        <input type="email" id="email-to-analysis" class="email-send-input" placeholder="destinatario@email.com">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="sendEmail('analysis_pdf', '{{ result_id }}', 'analysis')">
+        Enviar
+      </button>
+      <div id="email-msg-analysis" style="font-size:0.8rem;color:var(--green);display:none;width:100%"></div>
+    </div>
+    {% endif %}
 
     {% if is_guest %}
     <div class="register-cta">
@@ -239,12 +258,25 @@
     <div class="tool-result-card hidden" id="tool-result-card">
       <div class="tool-result-header">
         <strong id="tool-result-label"></strong>
-        {% if is_guest %}
-        <button class="btn btn-secondary btn-sm btn-locked" onclick="openAuthModal('register')" title="Crea una cuenta para descargar">🔒 PDF</button>
-        {% else %}
-        <button class="btn btn-secondary btn-sm" onclick="downloadToolPdf()" id="btn-tool-pdf">⬇ PDF</button>
-        {% endif %}
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+          {% if is_guest %}
+          <button class="btn btn-secondary btn-sm btn-locked" onclick="openAuthModal('register')" title="Crea una cuenta para descargar">🔒 PDF</button>
+          {% else %}
+          <button class="btn btn-secondary btn-sm" onclick="downloadToolPdf()" id="btn-tool-pdf">⬇ PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleReportEmailBox()">✉️ Email</button>
+          {% endif %}
+        </div>
       </div>
+      {% if user %}
+      <div class="email-send-box hidden" id="report-email-box" style="margin:0.75rem 0 0">
+        <div style="flex:1;min-width:180px">
+          <label class="field-label">Enviar informe a:</label>
+          <input type="email" id="report-email-to-tool" class="email-send-input" placeholder="destinatario@email.com">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="sendReportEmail('tool')">Enviar</button>
+        <div id="report-email-msg-tool" style="font-size:0.8rem;display:none;width:100%"></div>
+      </div>
+      {% endif %}
       <div class="tool-result-body" id="tool-result-body"></div>
     </div>
   </div>
@@ -429,6 +461,60 @@ async function downloadToolPdf() {
   }
   btn.textContent = '⬇ PDF';
   btn.disabled = false;
+}
+
+// ── Email send helpers ─────────────────────────────────────────────────────────
+function toggleEmailBox(key) {
+  const box = document.getElementById('email-box-' + key);
+  if (box) box.classList.toggle('hidden');
+}
+function toggleReportEmailBox() {
+  const box = document.getElementById('report-email-box');
+  if (box) box.classList.toggle('hidden');
+}
+
+async function sendEmail(fmt, resultId, key) {
+  const input = document.getElementById('email-to-' + key);
+  const msgEl = document.getElementById('email-msg-' + key);
+  const email = input ? input.value.trim() : '';
+  if (!email) { alert('Ingresa un email destinatario.'); return; }
+
+  msgEl.style.display = 'none';
+  const body = new URLSearchParams({ result_id: resultId, to_email: email, fmt });
+  try {
+    const res = await fetch('/email/send-cv', { method: 'POST', body });
+    const data = await res.json();
+    msgEl.textContent = data.ok ? '✓ Email enviado correctamente.' : ('Error: ' + (data.error || 'desconocido'));
+    msgEl.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display = 'block';
+  } catch(e) {
+    msgEl.textContent = 'Error de red.'; msgEl.style.color = 'var(--red)'; msgEl.style.display = 'block';
+  }
+}
+
+async function sendReportEmail(key) {
+  const input = document.getElementById('report-email-to-' + key);
+  const msgEl = document.getElementById('report-email-msg-' + key);
+  const email = input ? input.value.trim() : '';
+  if (!email) { alert('Ingresa un email destinatario.'); return; }
+  if (!_lastTool || !_lastText) { alert('Genera el informe primero.'); return; }
+
+  msgEl.style.display = 'none';
+  const body = new URLSearchParams({
+    result_id: '{{ result_id }}',
+    to_email: email,
+    tool_type: _lastTool,
+    content: _lastText,
+  });
+  try {
+    const res = await fetch('/email/send-report', { method: 'POST', body });
+    const data = await res.json();
+    msgEl.textContent = data.ok ? '✓ Email enviado.' : ('Error: ' + (data.error || 'desconocido'));
+    msgEl.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display = 'block';
+  } catch(e) {
+    msgEl.textContent = 'Error de red.'; msgEl.style.color = 'var(--red)'; msgEl.style.display = 'block';
+  }
 }
 
 function setRating(val) {

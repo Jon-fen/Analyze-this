@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from config import get_settings
 from deps import templates                        # shared instance
 from services.session import validate_session
-from routers import analyze, auth, tools, history, admin
+from routers import analyze, auth, tools, history, admin, email_router, referral
 
 
 @asynccontextmanager
@@ -49,4 +49,6 @@ app.include_router(auth.router)
 app.include_router(tools.router)
 app.include_router(history.router)
 app.include_router(admin.router)
+app.include_router(email_router.router)
+app.include_router(referral.router)
 app.include_router(analyze.router)   # last — catches "/" and "/analyze"

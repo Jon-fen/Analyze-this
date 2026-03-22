@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""  # service_role key (server-only, bypasses RLS)
     google_client_id: str = ""
     google_client_secret: str = ""
+    smtp_host: str = ""
+    smtp_port: str = "587"
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""
 
     class Config:
         env_file = ".env"
