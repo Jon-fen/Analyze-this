@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     smtp_pass: str = ""
     smtp_from: str = ""
 
+    @property
+    def email_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_pass)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

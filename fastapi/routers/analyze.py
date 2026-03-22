@@ -207,6 +207,7 @@ async def analyze(
         "was_truncated": cv_data.get("_was_truncated", False),
         "model_used": cv_data.get("_model_used", "haiku"),
         "is_guest": not bool(user),
+        "email_configured": get_settings().email_configured,
     })
 
     # Set guest cookie if needed
