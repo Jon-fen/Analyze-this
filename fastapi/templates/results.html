@@ -77,7 +77,7 @@
         </div>
         <div class="breakdown-bar-track">
           <div class="breakdown-bar-fill"
-            style="width: {{ value }}%; background: {% if value >= 75 %}#16A34A{% elif value >= 55 %}#D97706{% else %}#DC2626{% endif %}">
+            style="--bar-w:{{ value }}%; background: {% if value >= 75 %}#16A34A{% elif value >= 55 %}#D97706{% else %}#DC2626{% endif %}">
           </div>
         </div>
       </div>
@@ -543,9 +543,6 @@ async function sendFeedback() {
 document.addEventListener('DOMContentLoaded', () => {
   const ring = document.querySelector('.score-ring');
   if (ring) ring.style.animation = 'scoreIn 1s ease-out forwards';
-  document.querySelectorAll('.breakdown-bar-fill').forEach(bar => {
-    bar.style.animation = 'barIn 0.8s ease-out forwards';
-  });
 });
 </script>
 {% endblock %}

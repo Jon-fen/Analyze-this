@@ -482,7 +482,7 @@ a:hover { text-decoration: underline; }
 }
 @keyframes barIn {
   from { width: 0; }
-  to   { width: inherit; }
+  to   { width: var(--bar-w, 0%); }
 }
 
 /* Keywords */
