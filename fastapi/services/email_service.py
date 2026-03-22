@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
-from typing import Optional
+from typing import Optional, Tuple
 from config import get_settings
 
 
@@ -23,7 +23,7 @@ def send_pdf_email(
     body_html: str,
     pdf_buffer: io.BytesIO,
     filename: str,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """Send an email with a PDF attachment. Returns (ok, error_message)."""
     s = get_settings()
     if not _smtp_configured():
