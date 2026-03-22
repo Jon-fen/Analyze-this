@@ -47,24 +47,6 @@ def _get_result(result_id: str) -> Optional[dict]:
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
 
-@router.get("/debug-index")
-async def debug_index(request: Request):
-    import traceback
-    try:
-        user = getattr(request.state, "user", None)
-        stats = get_global_stats()
-        reviews = get_public_reviews()
-        show_auth = request.query_params.get("show_auth") == "1"
-        rendered = templates.get_template("index.html").render(
-            request=request, user=user, stats=stats, reviews=reviews,
-            show_auth_modal=show_auth,
-            SUPABASE_URL=request.app.state.__dict__.get("SUPABASE_URL", ""),
-            SUPABASE_KEY="",
-        )
-        return JSONResponse({"ok": True, "length": len(rendered), "stats": stats, "reviews_count": len(reviews)})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e), "trace": traceback.format_exc()})
-
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
