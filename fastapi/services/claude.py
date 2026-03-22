@@ -58,6 +58,16 @@ REGLA ABSOLUTA — CERO INVENCIÓN:
 - Ante la duda entre incluir algo o no → NO lo incluyas
 Inventar datos es el error más grave posible. Es preferible un CV más corto que uno con datos falsos.
 
+TRANSFORMACIÓN CARGO → RESULTADO (obligatorio en cada logro):
+- PROHIBIDO: "Responsable de X" / "Encargado de Y" / "A cargo de Z" / "Participé en"
+- OBLIGATORIO: verbo de acción + impacto + contexto
+  Correcto: "Reduje el tiempo de despacho 30% liderando equipo de 5 personas"
+  Incorrecto: "Responsable del área de despacho"
+- Si el CV original tiene métricas → usarlas exactas
+- Si no hay métricas pero el contexto permite estimarlas → inferir rango razonable y marcarlo: "~30%", "de 3 a 8 clientes/día"
+- Si no hay base para estimar → usar verbo fuerte sin métrica: "Lideré", "Implementé", "Diseñé", "Rediseñé", "Automaticé"
+  NUNCA: "Fui responsable de", "Me encargué de", "Participé en"
+
 INSTRUCCIONES:
 1. Solo reorganiza y reescribe lo que ya existe — NUNCA agregues información nueva
 2. Integra las palabras clave de la oferta SOLO si tienen respaldo en el CV original
