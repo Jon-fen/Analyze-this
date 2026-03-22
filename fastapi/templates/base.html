@@ -125,7 +125,7 @@
       </button>
       <div id="login-error" class="modal-error hidden"></div>
 
-      <details class="modal-forgot">
+      <details class="modal-forgot" ontoggle="if(this.open){var e=document.getElementById('login-email');var r=document.getElementById('reset-email');if(e&&r&&e.value)r.value=e.value;}">
         <summary>¿Olvidaste tu contraseña?</summary>
         <div style="margin-top:0.75rem">
           <input type="email" id="reset-email" class="modal-input" placeholder="tu@email.com">
