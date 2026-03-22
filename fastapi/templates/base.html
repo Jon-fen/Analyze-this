@@ -44,6 +44,7 @@
           </button>
           <div class="dropdown-menu" id="nav-dropdown-menu">
             <a href="/historial" class="dropdown-item">Mi historial</a>
+            <a href="#" class="dropdown-item" onclick="copyReferralLink(); return false;">🎁 Referir amigo (+2 análisis)</a>
             <a href="#" class="dropdown-item" onclick="openAuthModal('code'); closeDropdown(); return false;">Activar código</a>
             {% if user.plan == 'admin' %}
             <a href="/admin" class="dropdown-item">Panel Admin</a>
@@ -257,6 +258,16 @@ async function persistSession(session, user) {
       display_name:  user?.user_metadata?.display_name || user?.user_metadata?.full_name || '',
     }),
   });
+  // Redeem pending referral
+  const pendingRef = sessionStorage.getItem('pending_ref');
+  if (pendingRef) {
+    sessionStorage.removeItem('pending_ref');
+    await fetch('/referral/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ ref_code: pendingRef }),
+    });
+  }
 }
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
@@ -424,6 +435,27 @@ function showEl(el, msg) { el.textContent = msg; el.classList.remove('hidden'); 
 {% if show_auth_modal %}
 document.addEventListener('DOMContentLoaded', () => openAuthModal('login'));
 {% endif %}
+
+// ── Referral link copy ────────────────────────────────────────────────────────
+async function copyReferralLink() {
+  closeDropdown();
+  try {
+    const res = await fetch('/referral/my-link');
+    const data = await res.json();
+    if (data.ok) {
+      await navigator.clipboard.writeText(data.link);
+      alert('¡Link copiado! Compártelo con un amigo. Cuando se registre, ¡ambos ganan 2 análisis extra!');
+    }
+  } catch(e) {
+    alert('Error al obtener tu link de referido.');
+  }
+}
+
+// Auto-redeem referral code from URL ?ref=
+(function() {
+  const ref = new URLSearchParams(window.location.search).get('ref');
+  if (ref) sessionStorage.setItem('pending_ref', ref);
+})();
 </script>
 
 <script src="/static/js/app.js"></script>
