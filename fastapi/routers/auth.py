@@ -65,10 +65,21 @@ async def reset_password(email: str = Form(...)):
         from supabase import create_client
         s = get_settings()
         sb = create_client(s.supabase_url, s.supabase_key)
-        sb.auth.reset_password_email(email, options={"redirect_to": RAILWAY_URL + "/auth/callback"})
+        redirect = RAILWAY_URL + "/auth/callback?type=recovery"
+        sb.auth.reset_password_email(email, options={"redirect_to": redirect})
         return JSONResponse({"ok": True, "msg": "Email enviado. Revisa tu bandeja."})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
+
+
+@router.get("/update-password", response_class=HTMLResponse)
+async def update_password_form(request: Request):
+    settings = get_settings()
+    return templates.TemplateResponse("update_password.html", {
+        "request": request,
+        "SUPABASE_URL": settings.supabase_url,
+        "SUPABASE_KEY": settings.supabase_key,
+    })
 
 
 @router.post("/activate-code")

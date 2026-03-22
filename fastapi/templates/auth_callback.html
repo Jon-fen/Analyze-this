@@ -45,10 +45,12 @@
   }
 
   try {
+    const params = new URLSearchParams(window.location.search);
+    const urlType = params.get('type');  // Supabase adds type=recovery for reset links
+
     let { data, error } = await sb.auth.getSession();
 
     if (!data?.session) {
-      const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
       if (code) {
         const result = await sb.auth.exchangeCodeForSession(code);
@@ -58,8 +60,16 @@
 
     if (error || !data?.session) throw new Error(error?.message || 'No se pudo obtener la sesión.');
 
+    // Password recovery flow — store tokens and redirect to update-password form
+    if (urlType === 'recovery') {
+      sessionStorage.setItem('recovery_access',  data.session.access_token);
+      sessionStorage.setItem('recovery_refresh', data.session.refresh_token);
+      window.location.href = '/auth/update-password';
+      return;
+    }
+
     await persist(data.session, data.user || data.session.user);
-    const next = new URLSearchParams(window.location.search).get('next') || '/';
+    const next = params.get('next') || '/';
     window.location.href = next;
   } catch(e) {
     document.getElementById('err-msg').textContent = 'Error al autenticar: ' + e.message + '. Redirigiendo…';
