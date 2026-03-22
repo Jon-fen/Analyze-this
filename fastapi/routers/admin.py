@@ -129,3 +129,45 @@ async def admin_reject_fb(request: Request, feedback_id: int):
         return JSONResponse({"ok": False, "error": "no auth"})
     ok = approve_feedback(feedback_id, False)
     return JSONResponse({"ok": ok})
+
+
+# ── TEMPORARY DIAGNOSTIC — REMOVE AFTER USE ──────────────────────────────────
+@router.get("/diagnose")
+async def diagnose(request: Request):
+    """Runs the service_key diagnostic test. Admin session required."""
+    if not _require_admin(request):
+        return JSONResponse({"ok": False, "error": "no auth"})
+    import os
+    from supabase import create_client
+    from config import get_settings
+    s = get_settings()
+    result = {
+        "supabase_url": s.supabase_url[:40] if s.supabase_url else "MISSING",
+        "anon_key_prefix": s.supabase_key[:20] if s.supabase_key else "MISSING",
+        "service_key_set": bool(s.supabase_service_key),
+        "service_key_prefix": s.supabase_service_key[:20] if s.supabase_service_key else "MISSING",
+    }
+    # Test 1: anon client reads profiles
+    try:
+        c = create_client(s.supabase_url, s.supabase_key)
+        r = c.table("profiles").select("id,email,plan").limit(3).execute()
+        result["anon_profiles"] = r.data
+    except Exception as e:
+        result["anon_profiles_error"] = str(e)
+    # Test 2: service_role client reads profiles
+    if s.supabase_service_key:
+        try:
+            c2 = create_client(s.supabase_url, s.supabase_service_key)
+            r2 = c2.table("profiles").select("id,email,plan").limit(3).execute()
+            result["service_profiles"] = r2.data
+        except Exception as e:
+            result["service_profiles_error"] = str(e)
+    # Test 3: service_role tries UPDATE on a non-existent id
+    if s.supabase_service_key:
+        try:
+            c3 = create_client(s.supabase_url, s.supabase_service_key)
+            r3 = c3.table("profiles").update({"plan": "free"}).eq("id", "00000000-0000-0000-0000-000000000000").execute()
+            result["update_test_rows_affected"] = len(r3.data) if r3.data else 0
+        except Exception as e:
+            result["update_test_error"] = str(e)
+    return JSONResponse(result)
