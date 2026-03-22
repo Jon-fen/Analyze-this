@@ -17,8 +17,13 @@ def _sanitize_cv_text(text: str) -> str:
         .replace("\u201c", '"').replace("\u201d", '"')
         .replace("\u2018", "'").replace("\u2019", "'")
         .replace("\u00ab", '"').replace("\u00bb", '"')
+        .replace("\u2032", "'").replace("\u2033", '"')
+        .replace("\u2013", "-").replace("\u2014", "-")
         .replace("\x00", "")
         .replace("\r\n", "\n").replace("\r", "\n"))
+    # Llaves {} → paréntesis para evitar que rompan el JSON de respuesta
+    # Ej: {P}edagogical → (P)edagogical
+    text = text.replace("{", "(").replace("}", ")")
     text = re.sub(r'\n{4,}', '\n\n\n', text)
     lines = [re.sub(r'  +', ' ', l).strip() for l in text.split('\n')]
     return '\n'.join(lines).strip()
@@ -145,6 +150,11 @@ INSTRUCCIONES:
    - Retail/gobierno → sistemas propios básicos
    Adapta el formato y densidad de keywords según ese ATS inferido
 6. Evalúa compatibilidad ATS: sin tablas ni columnas que confundan parsers
+
+IMPORTANTE — ESCAPE JSON: El texto del CV puede contener apostrofes posesivos,
+comillas y símbolos especiales. Al escribir el JSON de respuesta, escápalos
+correctamente: apostrofe dentro de string → \\'  , comilla dentro de string → \\".
+No uses comillas sin escapar dentro de los valores JSON.
 
 CV ORIGINAL:
 {cv_text}

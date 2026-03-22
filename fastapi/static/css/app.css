@@ -148,10 +148,15 @@ a:hover { text-decoration: underline; }
 .urgency-pill {
   display: inline-flex; align-items: center; gap: 7px;
   background: #FFF7ED; border: 0.5px solid #FED7AA;
-  border-radius: 20px; padding: 5px 13px; margin-bottom: 22px; width: fit-content;
+  border-radius: 20px; padding: 5px 13px; margin-bottom: 10px; width: fit-content;
 }
 .u-dot { width: 7px; height: 7px; background: #EA580C; border-radius: 50%; flex-shrink: 0; }
 .urgency-pill span { font-size: 12px; color: #9A3412; font-weight: 500; }
+.ats-explainer {
+  font-size: 13px; color: #6B7280; line-height: 1.6;
+  margin-bottom: 16px; max-width: 420px;
+}
+.ats-explainer strong { color: #374151; font-weight: 600; }
 
 /* Hero title — dual typography */
 .hero-title { margin-bottom: 1.25rem; }
@@ -518,6 +523,13 @@ a:hover { text-decoration: underline; }
   width: 6px; height: 6px; border-radius: 50%; background: var(--green);
   animation: pulse-dot 2s ease-in-out infinite;
 }
+.ats-definition {
+  font-size: 12px; color: #9CA3AF; line-height: 1.6;
+  margin-top: 8px; padding: 8px 12px;
+  background: #F9FAFB; border-radius: 8px;
+  border-left: 3px solid #E5E7EB;
+}
+.ats-definition strong { color: #6B7280; font-weight: 600; }
 .ats-detected-badge {
   font-size: 0.75rem; font-weight: 600; color: var(--blue);
   background: var(--blue-lt); border: 1px solid var(--blue-bdr);
