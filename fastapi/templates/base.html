@@ -14,6 +14,12 @@
 </head>
 <body>
 
+<!-- ── Referral banner (hidden by default, shown via JS when ?ref= present) ── -->
+<div id="referral-banner" class="hidden" style="background:#F0FDF4;border-bottom:1px solid #BBF7D0;padding:0.6rem 1rem;text-align:center;font-size:0.875rem;color:#166534">
+  🎁 <strong>¡Fuiste invitado!</strong> Regístrate gratis y ambos ganan <strong>+2 análisis extra</strong> este mes.
+  <button onclick="document.getElementById('referral-banner').classList.add('hidden')" style="margin-left:1rem;background:none;border:none;cursor:pointer;color:#166534;font-size:1rem">✕</button>
+</div>
+
 <!-- ── Nav ── -->
 <header class="nav">
   <div class="nav-inner">
@@ -233,6 +239,14 @@ function switchTab(tab) {
   document.getElementById('panel-' + tab)?.classList.remove('hidden');
   // show code tab button when needed
   if (tab === 'code') document.getElementById('tab-code').classList.remove('hidden');
+  // auto-fill referral code in register form
+  if (tab === 'register') {
+    const pendingRef = sessionStorage.getItem('pending_ref');
+    if (pendingRef) {
+      const regCode = document.getElementById('reg-code');
+      if (regCode && !regCode.value) regCode.value = pendingRef;
+    }
+  }
 }
 
 function toggleDropdown() {
@@ -454,7 +468,17 @@ async function copyReferralLink() {
 // Auto-redeem referral code from URL ?ref=
 (function() {
   const ref = new URLSearchParams(window.location.search).get('ref');
-  if (ref) sessionStorage.setItem('pending_ref', ref);
+  if (ref) {
+    sessionStorage.setItem('pending_ref', ref);
+    // Show referral banner and open register tab (only for logged-out users)
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.getElementById('referral-banner');
+      if (banner) banner.classList.remove('hidden');
+      {% if not user %}
+      openAuthModal('register');
+      {% endif %}
+    });
+  }
 })();
 </script>
 
