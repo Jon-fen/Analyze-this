@@ -220,6 +220,21 @@
       </form>
     </div>
   </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="loading-spinner">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="20" stroke="rgba(255,255,255,0.2)" stroke-width="4"/>
+          <path d="M24 4a20 20 0 0 1 20 20" stroke="#6C8EF5" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p class="loading-title">Analizando tu CV con IA</p>
+      <p class="loading-msg" id="loading-msg">Leyendo tu currículum…</p>
+      <div class="loading-bar-track"><div class="loading-bar" id="loading-bar"></div></div>
+    </div>
+  </div>
 </section>
 
 <!-- ── How it works ── -->
@@ -452,6 +467,35 @@
     btn.querySelector('.btn-text').classList.add('hidden');
     btn.querySelector('.btn-loading').classList.remove('hidden');
     btn.disabled = true;
+
+    // Show animated loading overlay
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    const steps = [
+      { msg: "Leyendo tu currículum…",            pct: 8  },
+      { msg: "Extrayendo experiencia y skills…",  pct: 18 },
+      { msg: "Analizando la oferta de trabajo…",  pct: 30 },
+      { msg: "Comparando keywords del ATS…",      pct: 44 },
+      { msg: "Calculando score de compatibilidad…",pct: 58 },
+      { msg: "Optimizando secciones del CV…",     pct: 70 },
+      { msg: "Generando plan de acción…",          pct: 82 },
+      { msg: "Preparando tu resultado…",           pct: 92 },
+      { msg: "¡Casi listo!",                       pct: 97 },
+    ];
+    const msgEl = document.getElementById('loading-msg');
+    const barEl = document.getElementById('loading-bar');
+    let i = 0;
+    function nextStep() {
+      if (i < steps.length) {
+        msgEl.textContent = steps[i].msg;
+        barEl.style.width = steps[i].pct + '%';
+        i++;
+        setTimeout(nextStep, 1800 + Math.random() * 600);
+      }
+    }
+    nextStep();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 </script>

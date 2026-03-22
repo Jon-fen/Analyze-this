@@ -15,7 +15,7 @@ from services.builder import DOCX_BUILDERS, build_cv_pdf, build_analysis_pdf, TE
 from services.session import (
     save_history, save_guest_analysis, save_cv_copy,
     save_feedback, get_global_stats, get_public_reviews,
-    PLAN_LIMITS,
+    consume_credit, PLAN_LIMITS,
 )
 
 router = APIRouter()
@@ -62,6 +62,11 @@ async def index(request: Request):
     })
 
 
+@router.get("/analyze")
+async def analyze_get():
+    return RedirectResponse(url="/", status_code=301)
+
+
 @router.post("/analyze", response_class=HTMLResponse)
 async def analyze(
     request: Request,
@@ -71,13 +76,16 @@ async def analyze(
     max_pages: int = Form(2),
     font_size: float = Form(11.0),
     font_family: str = Form("Calibri"),
-    career_change: bool = Form(False),
-    cv_only: bool = Form(False),
+    career_change: Optional[str] = Form(None),
+    cv_only: Optional[str] = Form(None),
     output_lang: str = Form("es"),
-    save_cv_copy_toggle: bool = Form(False),
+    save_cv_copy_toggle: Optional[str] = Form(None),
 ):
     user = getattr(request.state, "user", None)
     settings = get_settings()
+    career_change_bool = career_change is not None and career_change.lower() not in ("false", "0", "")
+    cv_only_bool = cv_only is not None and cv_only.lower() not in ("false", "0", "")
+    save_cv_copy_bool = save_cv_copy_toggle is not None and save_cv_copy_toggle.lower() not in ("false", "0", "")
 
     def _err(msg, cv_text_raw_val=""):
         return templates.TemplateResponse("index.html", {
@@ -137,8 +145,8 @@ async def analyze(
     elif job_input:
         job_text = job_input
 
-    if not job_text and not cv_only:
-        cv_only = True
+    if not job_text and not cv_only_bool:
+        cv_only_bool = True
 
     # ── Run Claude ─────────────────────────────────────────────────────────────
     try:
@@ -148,8 +156,8 @@ async def analyze(
             max_pages=max_pages,
             font_size=font_size,
             api_key=settings.anthropic_api_key,
-            career_change=career_change,
-            cv_only=cv_only,
+            career_change=career_change_bool,
+            cv_only=cv_only_bool,
             output_lang=output_lang,
         )
     except Exception as e:
@@ -173,8 +181,10 @@ async def analyze(
             ats_ok,
         )
         # Optionally save CV copy
-        if save_cv_copy_toggle and history_id:
+        if save_cv_copy_bool and history_id:
             save_cv_copy(user["id"], history_id, cv_text, cv_data)
+        if user.get("plan") != "admin":
+            consume_credit(user["id"], user["credits_used"])
     else:
         save_guest_analysis()
 
@@ -214,10 +224,11 @@ async def download(request: Request, result_id: str, fmt: str = "docx", template
     if not cv_data:
         raise HTTPException(status_code=404, detail="Resultado expirado. Vuelve a analizar tu CV.")
 
-    # Guests: only allow analysis_pdf, block CV downloads
+    # Guests: allow analysis_pdf + Clásico PDF only
     user = getattr(request.state, "user", None)
-    if not user and fmt != "analysis_pdf":
-        return RedirectResponse(url=f"/?show_auth=1", status_code=303)
+    guest_allowed = fmt == "analysis_pdf" or (fmt == "pdf" and template == "Clásico")
+    if not user and not guest_allowed:
+        return RedirectResponse(url="/?show_auth=1", status_code=303)
 
     nombre = cv_data.get("nombre", "CV").replace(" ", "_")
     fn = cv_data.get("_font_family", "Calibri")

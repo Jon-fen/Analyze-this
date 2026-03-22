@@ -24,6 +24,15 @@ def _sb() -> Client:
     return create_client(s.supabase_url, s.supabase_key)
 
 
+def _sb_admin() -> Client:
+    """Uses service_role key to bypass RLS for admin writes. Falls back to anon key."""
+    s = get_settings()
+    key = s.supabase_service_key or s.supabase_key
+    if not s.supabase_url or not key:
+        raise RuntimeError("Supabase not configured")
+    return create_client(s.supabase_url, key)
+
+
 # ─── Session validation ────────────────────────────────────────────────────────
 
 def validate_session(request: Request) -> Tuple[Optional[dict], Optional[dict]]:
@@ -39,7 +48,7 @@ def validate_session(request: Request) -> Tuple[Optional[dict], Optional[dict]]:
         if not user:
             raise Exception("no user")
         profile = _get_profile(sb, str(user.id))
-        return _build_user_dict(user, profile), None
+        return _build_user_dict(sb, user, profile), None
     except Exception:
         if not refresh:
             return None, None
@@ -51,7 +60,7 @@ def validate_session(request: Request) -> Tuple[Optional[dict], Optional[dict]]:
                 return None, None
             user = res.user or session.user
             profile = _get_profile(sb, str(user.id))
-            return _build_user_dict(user, profile), {
+            return _build_user_dict(sb, user, profile), {
                 "access_token": session.access_token,
                 "refresh_token": session.refresh_token,
             }
@@ -67,25 +76,37 @@ def _get_profile(sb: Client, user_id: str) -> dict:
         return {}
 
 
-def _build_user_dict(user, profile: dict) -> dict:
+def _build_user_dict(sb: Client, user, profile: dict) -> dict:
     plan = profile.get("plan", "free")
     used = profile.get("credits_used_this_month", 0)
     limit = PLAN_LIMITS.get(plan, 5)
-    # Monthly reset check
+    # Monthly reset — if new month, reset counter in DB too
     reset_str = profile.get("credits_reset_at", "")
     if reset_str:
         try:
             reset_dt = datetime.fromisoformat(reset_str.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
             if now.month != reset_dt.month or now.year != reset_dt.year:
+                try:
+                    sb.table("profiles").update({
+                        "credits_used_this_month": 0,
+                        "credits_reset_at": now.isoformat(),
+                    }).eq("id", str(user.id)).execute()
+                except Exception:
+                    pass
                 used = 0
         except Exception:
             pass
     remaining = 999_999 if plan == "admin" else max(0, limit - used)
+    meta = getattr(user, "user_metadata", None) or {}
+    if isinstance(meta, dict):
+        display = profile.get("display_name") or meta.get("display_name") or meta.get("full_name") or ""
+    else:
+        display = profile.get("display_name") or ""
     return {
         "id": str(user.id),
         "email": getattr(user, "email", "") or "",
-        "display_name": profile.get("display_name") or getattr(user, "user_metadata", {}).get("display_name") or getattr(user, "user_metadata", {}).get("full_name") or "",
+        "display_name": display,
         "plan": plan,
         "credits_used": used,
         "credits_limit": limit,
@@ -284,7 +305,7 @@ def validate_and_use_code(user_id: str, code: str) -> Tuple[bool, str]:
             if datetime.now(timezone.utc) > exp_dt:
                 return False, "Este código ha expirado."
         plan = row.get("grants_plan", "pro_code")
-        sb.table("profiles").update({
+        _sb_admin().table("profiles").update({
             "plan": plan,
             "activation_code": code,
             "credits_used_this_month": 0,
@@ -347,7 +368,7 @@ def get_admin_users() -> list:
 
 def update_user_plan(user_id: str, plan: str) -> bool:
     try:
-        _sb().table("profiles").update({"plan": plan}).eq("id", user_id).execute()
+        _sb_admin().table("profiles").update({"plan": plan}).eq("id", user_id).execute()
         return True
     except Exception:
         return False
@@ -355,7 +376,7 @@ def update_user_plan(user_id: str, plan: str) -> bool:
 
 def reset_user_credits(user_id: str) -> bool:
     try:
-        _sb().table("profiles").update({
+        _sb_admin().table("profiles").update({
             "credits_used_this_month": 0,
             "credits_reset_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", user_id).execute()

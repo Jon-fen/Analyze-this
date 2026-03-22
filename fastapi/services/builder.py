@@ -5,6 +5,13 @@ All four templates: Clásico, Moderno, Ejecutivo, Minimalista.
 import io
 import re
 
+
+def _x(s) -> str:
+    """Escape string for use inside ReportLab XML markup."""
+    if not s:
+        return ""
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 from docx import Document as DocxDocument
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -328,10 +335,10 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         return HRFlowable(width="100%", thickness=thickness, color=color, spaceAfter=4)
 
     story = []
-    story.append(Paragraph(cv.get("nombre", ""), s_name))
+    story.append(Paragraph(_x(cv.get("nombre", "")), s_name))
     if cv.get("titulo_profesional"):
-        story.append(Paragraph(cv["titulo_profesional"], s_title))
-    parts = [x for x in [cv.get("email"), cv.get("telefono"), cv.get("ubicacion"), cv.get("linkedin")] if x]
+        story.append(Paragraph(_x(cv["titulo_profesional"]), s_title))
+    parts = [_x(x) for x in [cv.get("email"), cv.get("telefono"), cv.get("ubicacion"), cv.get("linkedin")] if x]
     if parts:
         story.append(Paragraph("  |  ".join(parts), s_contact))
     story.append(hr())
@@ -342,17 +349,16 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
 
     if cv.get("resumen_profesional"):
         section("Resumen profesional")
-        story.append(Paragraph(cv["resumen_profesional"], s_body))
+        story.append(Paragraph(_x(cv["resumen_profesional"]), s_body))
 
     if cv.get("experiencia"):
         section("Experiencia profesional")
         for exp in cv["experiencia"]:
             block = []
-            block.append(Paragraph(f"<b>{exp.get('cargo','')}</b>  —  {exp.get('empresa','')}", s_body))
-            block.append(Paragraph(exp.get("periodo", ""), s_italic))
+            block.append(Paragraph(f"<b>{_x(exp.get('cargo',''))}</b>  —  {_x(exp.get('empresa',''))}", s_body))
+            block.append(Paragraph(_x(exp.get("periodo", "")), s_italic))
             for logro in exp.get("logros", []):
-                safe = logro.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                block.append(Paragraph(f"• {safe}", s_bullet))
+                block.append(Paragraph(f"• {_x(logro)}", s_bullet))
             story.append(KeepTogether(block))
             story.append(Spacer(1, 4))
 
@@ -360,28 +366,28 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         section("Educación")
         for edu in cv["educacion"]:
             story.append(Paragraph(
-                f"<b>{edu.get('titulo','')}</b>  —  {edu.get('institucion','')}  ({edu.get('periodo','')})", s_body))
+                f"<b>{_x(edu.get('titulo',''))}</b>  —  {_x(edu.get('institucion',''))}  ({_x(edu.get('periodo',''))})", s_body))
             if edu.get("detalle"):
-                story.append(Paragraph(edu["detalle"], s_italic))
+                story.append(Paragraph(_x(edu["detalle"]), s_italic))
 
     sk_tec = cv.get("habilidades_tecnicas", [])
     sk_bla = cv.get("habilidades_blandas", [])
     if sk_tec or sk_bla:
         section("Habilidades")
         if sk_tec:
-            story.append(Paragraph("<b>Técnicas:</b>  " + "  ·  ".join(sk_tec), s_body))
+            story.append(Paragraph("<b>Técnicas:</b>  " + "  ·  ".join(_x(s) for s in sk_tec), s_body))
         if sk_bla:
-            story.append(Paragraph("<b>Competencias:</b>  " + "  ·  ".join(sk_bla), s_body))
+            story.append(Paragraph("<b>Competencias:</b>  " + "  ·  ".join(_x(s) for s in sk_bla), s_body))
 
     if cv.get("idiomas"):
         section("Idiomas")
-        story.append(Paragraph("  |  ".join(cv["idiomas"]), s_body))
+        story.append(Paragraph("  |  ".join(_x(i) for i in cv["idiomas"]), s_body))
 
     certs = [c for c in cv.get("certificaciones", []) if c]
     if certs:
         section("Certificaciones")
         for cert in certs:
-            story.append(Paragraph(f"• {cert}", s_bullet))
+            story.append(Paragraph(f"• {_x(cert)}", s_bullet))
 
     story.append(Spacer(1, 12))
     story.append(hr(C_DIS, 0.4))
