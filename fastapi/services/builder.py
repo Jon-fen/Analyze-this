@@ -335,7 +335,16 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         return HRFlowable(width="100%", thickness=thickness, color=color, spaceAfter=4)
 
     story = []
-    story.append(Paragraph(_x(cv.get("nombre", "")), s_name))
+    # Logo in top-right corner
+    if os.path.exists(_LOGO_PATH):
+        s_logo_label = sty("ll", fontSize=6.5, textColor=C_DIS, alignment=TA_RIGHT)
+        logo_img = RLImage(_LOGO_PATH, width=1.4*cm, height=0.93*cm)
+        name_para = Paragraph(_x(cv.get("nombre", "")), s_name)
+        logo_row = Table([[name_para, logo_img]], colWidths=[14.5*cm, 1.5*cm])
+        logo_row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (1, 0), (1, 0), "RIGHT")]))
+        story.append(logo_row)
+    else:
+        story.append(Paragraph(_x(cv.get("nombre", "")), s_name))
     if cv.get("titulo_profesional"):
         story.append(Paragraph(_x(cv["titulo_profesional"]), s_title))
     parts = [_x(x) for x in [cv.get("email"), cv.get("telefono"), cv.get("ubicacion"), cv.get("linkedin")] if x]
@@ -399,7 +408,12 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
 
 # ─── Branded PDF (for tools: carta, entrevista, linkedin + analysis) ───────────
 
-_LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "static", "logo.png")
+# Try Railway path first, then local relative path
+_LOGO_PATH = (
+    "/app/static/logo2.png"
+    if os.path.exists("/app/static/logo2.png")
+    else os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "static", "logo2.png"))
+)
 _RL_NAVY  = rl_colors.HexColor("#1B4F8A")
 _RL_GOLD  = rl_colors.HexColor("#C8973A")
 _RL_LIGHT = rl_colors.HexColor("#8B96A0")
@@ -422,7 +436,7 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
 
     hdr_left  = Paragraph("<b>Analyze-This</b> · CV Optimizer ATS", s_hdr)
     hdr_right = Paragraph(person_name or "", s_hdr)
-    logo_path = os.path.normpath(_LOGO_PATH)
+    logo_path = _LOGO_PATH
     if os.path.exists(logo_path):
         logo = RLImage(logo_path, width=1.6*cm, height=1.06*cm)
         hdr_data = [[logo, hdr_left, hdr_right]]
