@@ -24,7 +24,7 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="/" class="nav-logo">
-      <img src="/static/logo2.png" alt="Analyze-This" class="nav-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+      <img src="/static/logo2.png" alt="Analyze-This" class="nav-logo-img" style="mix-blend-mode:multiply" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
       <span class="nav-logo-mark" style="display:none">AT</span>
       <span class="nav-logo-text">Analyze-This</span>
       <span class="beta-pill">Beta</span>
@@ -118,11 +118,11 @@
     <div class="modal-panel" id="panel-login">
       <div class="modal-field">
         <label class="field-label">Email</label>
-        <input type="email" id="login-email" class="modal-input" placeholder="tu@email.com" autocomplete="email">
+        <input type="email" id="login-email" class="modal-input" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-btn').click()">
       </div>
       <div class="modal-field">
         <label class="field-label">Contraseña</label>
-        <input type="password" id="login-pw" class="modal-input" placeholder="••••••••" autocomplete="current-password">
+        <input type="password" id="login-pw" class="modal-input" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')document.getElementById('login-btn').click()">
       </div>
       <button class="btn btn-primary btn-full" onclick="loginEmail()" id="login-btn">
         <span id="login-btn-text">Entrar</span>
@@ -178,7 +178,8 @@
       </div>
       <div class="modal-field">
         <label class="field-label">🎟️ Código de activación (opcional)</label>
-        <input type="text" id="reg-code" class="modal-input" placeholder="Si tienes un código de acceso">
+        <input type="text" id="reg-code" class="modal-input" placeholder="Si tienes un código de acceso"
+          oninput="(function(el){var v=el.value.trim();if(v.includes('ref=')){var m=v.match(/[?&]ref=([A-Z0-9]+)/i);if(m){el.value=m[1].toUpperCase();el.style.borderColor='#10B981';setTimeout(()=>el.style.borderColor='',1500);return;}}if(v.startsWith('http')){el.value='';return;}el.value=v.toUpperCase();})(this)">
       </div>
       <button class="btn btn-primary btn-full" onclick="registerEmail()" id="reg-btn">
         <span id="reg-btn-text">Crear cuenta gratis</span>
