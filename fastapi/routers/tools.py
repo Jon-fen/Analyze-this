@@ -19,6 +19,8 @@ TOOL_LABELS = {
 
 
 def _build_prompt(tool: str, nombre: str, titulo: str, resumen: str, skills: str) -> str:
+    _footer = "\n\n---\nGenerado con Analyze-This · CV Optimizer ATS\nPruébalo gratis: https://analyze-this-production.up.railway.app"
+
     if tool == "carta":
         return f"""Escribe una carta de presentación para el puesto de {titulo}.
 Empieza con una idea potente (NO empieces con 'Me postulo para...' ni 'Mi nombre es...').
@@ -31,7 +33,8 @@ Nombre: {nombre}
 Resumen: {resumen}
 Habilidades clave: {skills}
 
-Escribe solo la carta, sin títulos ni explicaciones adicionales."""
+Escribe solo la carta, sin títulos ni explicaciones adicionales.
+Al final agrega exactamente esta línea (sin modificar):{_footer}"""
 
     if tool == "entrevista":
         return f"""Soy candidato al puesto de {titulo}.
@@ -44,7 +47,8 @@ Mi perfil:
 {resumen}
 Habilidades: {skills}
 
-Sé específico y práctico. Evita respuestas genéricas."""
+Sé específico y práctico. Evita respuestas genéricas.
+Al final agrega exactamente esta línea (sin modificar):{_footer}"""
 
     if tool == "linkedin":
         return f"""Reescribe estas 3 secciones de mi perfil LinkedIn para posicionarme en búsquedas de reclutadores para el puesto de {titulo}:
@@ -57,7 +61,8 @@ Mi perfil actual:
 {resumen}
 Habilidades: {skills}
 
-Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para reclutadores humanos."""
+Haz que cada palabra tenga peso. Optimiza para el algoritmo de LinkedIn y para reclutadores humanos.
+Al final agrega exactamente esta línea (sin modificar):{_footer}"""
 
     return ""
 
