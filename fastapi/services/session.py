@@ -366,20 +366,84 @@ def get_admin_users() -> list:
         return []
 
 
-def update_user_plan(user_id: str, plan: str) -> bool:
+def update_user_plan(user_id: str, plan: str) -> Tuple[bool, str]:
     try:
         _sb_admin().table("profiles").update({"plan": plan}).eq("id", user_id).execute()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 
-def reset_user_credits(user_id: str) -> bool:
+def reset_user_credits(user_id: str) -> Tuple[bool, str]:
     try:
         _sb_admin().table("profiles").update({
             "credits_used_this_month": 0,
             "credits_reset_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", user_id).execute()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_assign_code(user_id: str, code: str) -> Tuple[bool, str]:
+    """Assign an activation code to a user and update their plan."""
+    try:
+        sb = _sb_admin()
+        row = sb.table("activation_codes").select("*").eq("code", code.strip().upper()).maybe_single().execute()
+        if not row.data:
+            return False, "Código no encontrado"
+        plan = row.data.get("grants_plan", "pro_code")
+        sb.table("profiles").update({
+            "plan": plan,
+            "activation_code": code.strip().upper(),
+            "credits_used_this_month": 0,
+        }).eq("id", user_id).execute()
+        sb.table("activation_codes").update({
+            "uses_count": (row.data.get("uses_count") or 0) + 1,
+        }).eq("code", code.strip().upper()).execute()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_send_reset(user_email: str) -> Tuple[bool, str]:
+    """Send password reset email to a user via Supabase admin API."""
+    try:
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada"
+        sb = _sb_admin()
+        sb.auth.admin.generate_link({
+            "type": "recovery",
+            "email": user_email,
+        })
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_ban_user(user_id: str, ban: bool) -> Tuple[bool, str]:
+    """Ban or unban a user via Supabase auth admin."""
+    try:
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada"
+        sb = _sb_admin()
+        ban_duration = "876600h" if ban else "none"
+        sb.auth.admin.update_user_by_id(user_id, {"ban_duration": ban_duration})
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_delete_user(user_id: str) -> Tuple[bool, str]:
+    """Permanently delete a user (auth + profile)."""
+    try:
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada"
+        sb = _sb_admin()
+        sb.auth.admin.delete_user(user_id)
+        return True, ""
+    except Exception as e:
+        return False, str(e)

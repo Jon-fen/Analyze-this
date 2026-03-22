@@ -36,6 +36,7 @@
   <!-- Users -->
   <div class="breakdown-card">
     <h3 class="card-title">Gestión de usuarios <span style="font-weight:400;color:var(--text3)">(últimos 20)</span></h3>
+    <div id="admin-msg" style="display:none;font-size:0.82rem;padding:0.5rem 0.75rem;border-radius:6px;margin-bottom:0.75rem"></div>
     {% if users %}
     <div class="admin-table">
       {% for u in users %}
@@ -43,20 +44,38 @@
       {% set limit = plan_limits.get(plan, 5) %}
       {% set used  = u.credits_used_this_month or 0 %}
       <div class="admin-row" id="user-row-{{ u.id }}">
-        <div class="admin-user-info">
-          <strong>{{ u.email }}</strong>
-          <span style="font-size:0.75rem;color:var(--text3)">
+        <div class="admin-user-info" style="min-width:0;flex:1">
+          <strong style="font-size:0.85rem">{{ u.email }}</strong>
+          <span style="font-size:0.72rem;color:var(--text3)">
             {{ used }}/{% if plan == 'admin' %}∞{% else %}{{ limit }}{% endif %} análisis
-            {% if u.activation_code %} · código: {{ u.activation_code }}{% endif %}
+            {% if u.activation_code %} · código: <code>{{ u.activation_code }}</code>{% endif %}
           </span>
         </div>
+
+        <!-- Plan change -->
         <select class="select" id="plan-{{ u.id }}" style="width:auto;font-size:0.8rem">
           {% for p in ['free','pro_code','pro','admin'] %}
           <option value="{{ p }}" {% if plan == p %}selected{% endif %}>{{ p }}</option>
           {% endfor %}
         </select>
-        <button class="btn btn-secondary btn-sm" onclick="changePlan('{{ u.id }}')">Cambiar</button>
-        <button class="btn btn-secondary btn-sm" onclick="resetCredits('{{ u.id }}')" title="Reset créditos">↺</button>
+        <button class="btn btn-secondary btn-sm" onclick="changePlan('{{ u.id }}')">Cambiar plan</button>
+
+        <!-- More actions dropdown -->
+        <div style="position:relative;display:inline-block" id="dropdown-{{ u.id }}">
+          <button class="btn btn-secondary btn-sm" onclick="toggleUserMenu('{{ u.id }}')">⋮</button>
+          <div id="menu-{{ u.id }}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;min-width:200px;box-shadow:var(--shadow);z-index:50;padding:4px 0">
+            <button class="dropdown-item" onclick="resetCredits('{{ u.id }}'); closeUserMenu('{{ u.id }}')">↺ Resetear créditos</button>
+            <div style="padding:4px 12px;display:flex;gap:6px;align-items:center;border-top:1px solid var(--border);margin-top:2px;padding-top:6px">
+              <input type="text" id="code-input-{{ u.id }}" class="modal-input" placeholder="Código" style="font-size:0.78rem;padding:4px 8px;width:90px">
+              <button class="btn btn-secondary btn-sm" onclick="assignCode('{{ u.id }}', '{{ u.email }}'); closeUserMenu('{{ u.id }}')">Asignar código</button>
+            </div>
+            <button class="dropdown-item" onclick="sendReset('{{ u.id }}', '{{ u.email }}'); closeUserMenu('{{ u.id }}')">🔑 Enviar reset contraseña</button>
+            <button class="dropdown-item" id="ban-btn-{{ u.id }}" onclick="toggleBan('{{ u.id }}', '{{ u.email }}'); closeUserMenu('{{ u.id }}')">
+              🚫 Bloquear usuario
+            </button>
+            <button class="dropdown-item dropdown-item-danger" onclick="deleteUser('{{ u.id }}', '{{ u.email }}'); closeUserMenu('{{ u.id }}')">🗑 Eliminar usuario</button>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -156,6 +175,16 @@
 
 {% block scripts %}
 <script>
+function showAdminMsg(msg, ok) {
+  const el = document.getElementById('admin-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = ok ? 'var(--green-lt)' : 'var(--red-lt)';
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  el.style.border = `1px solid ${ok ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}`;
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
 async function postAdmin(url, body) {
   const res = await fetch(url, {
     method: 'POST',
@@ -165,20 +194,66 @@ async function postAdmin(url, body) {
   return res.json();
 }
 
+// User menu toggles
+function toggleUserMenu(uid) {
+  const menu = document.getElementById('menu-' + uid);
+  document.querySelectorAll('[id^="menu-"]').forEach(m => { if (m.id !== 'menu-' + uid) m.style.display = 'none'; });
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+function closeUserMenu(uid) { document.getElementById('menu-' + uid).style.display = 'none'; }
+document.addEventListener('click', e => {
+  if (!e.target.closest('[id^="dropdown-"]')) document.querySelectorAll('[id^="menu-"]').forEach(m => m.style.display = 'none');
+});
+
 window.changePlan = async function(uid) {
   const plan = document.getElementById('plan-' + uid).value;
   const data = await postAdmin(`/admin/user/${uid}/plan`, { plan });
-  if (data.ok) window.location.reload(); else alert('Error');
+  if (data.ok) {
+    showAdminMsg(`✓ Plan actualizado a "${plan}"`, true);
+    setTimeout(() => window.location.reload(), 1200);
+  } else {
+    showAdminMsg('Error: ' + (data.error || 'desconocido') + '\n¿Configuraste SUPABASE_SERVICE_KEY en Railway?', false);
+  }
 };
 
 window.resetCredits = async function(uid) {
   const data = await fetch(`/admin/user/${uid}/reset-credits`, { method: 'POST' }).then(r => r.json());
-  if (data.ok) window.location.reload(); else alert('Error');
+  if (data.ok) { showAdminMsg('✓ Créditos reseteados', true); setTimeout(() => window.location.reload(), 1200); }
+  else showAdminMsg('Error: ' + (data.error || 'desconocido'), false);
+};
+
+window.assignCode = async function(uid) {
+  const code = document.getElementById('code-input-' + uid).value.trim().toUpperCase();
+  if (!code) { showAdminMsg('Ingresa un código', false); return; }
+  const data = await postAdmin(`/admin/user/${uid}/assign-code`, { code });
+  if (data.ok) { showAdminMsg(`✓ Código ${code} asignado`, true); setTimeout(() => window.location.reload(), 1200); }
+  else showAdminMsg('Error: ' + (data.error || 'desconocido'), false);
+};
+
+window.sendReset = async function(uid, email) {
+  if (!confirm(`¿Enviar email de reset de contraseña a ${email}?`)) return;
+  const data = await postAdmin(`/admin/user/${uid}/send-reset`, { email });
+  if (data.ok) showAdminMsg(`✓ Email de reset enviado a ${email}`, true);
+  else showAdminMsg('Error: ' + (data.error || 'requiere SUPABASE_SERVICE_KEY'), false);
+};
+
+window.toggleBan = async function(uid, email) {
+  const action = confirm(`¿Bloquear a ${email}?\nCancel = Desbloquear`) ? 'true' : 'false';
+  const data = await postAdmin(`/admin/user/${uid}/ban`, { ban: action });
+  if (data.ok) { showAdminMsg(`✓ Usuario ${action === 'true' ? 'bloqueado' : 'desbloqueado'}`, true); setTimeout(() => window.location.reload(), 1200); }
+  else showAdminMsg('Error: ' + (data.error || 'requiere SUPABASE_SERVICE_KEY'), false);
+};
+
+window.deleteUser = async function(uid, email) {
+  if (!confirm(`⚠️ ¿ELIMINAR PERMANENTEMENTE a ${email}?\nEsta acción no se puede deshacer.`)) return;
+  const data = await fetch(`/admin/user/${uid}/delete`, { method: 'POST' }).then(r => r.json());
+  if (data.ok) { showAdminMsg(`✓ Usuario eliminado`, true); setTimeout(() => window.location.reload(), 1500); }
+  else showAdminMsg('Error: ' + (data.error || 'requiere SUPABASE_SERVICE_KEY'), false);
 };
 
 window.toggleCode = async function(codeId, active) {
   const data = await postAdmin(`/admin/codes/${codeId}/toggle`, { active });
-  if (data.ok) window.location.reload(); else alert('Error');
+  if (data.ok) window.location.reload(); else showAdminMsg('Error al cambiar código', false);
 };
 
 window.createCode = async function(e) {
@@ -193,13 +268,13 @@ window.createCode = async function(e) {
     expires_at:  document.getElementById('nc-exp').value.trim(),
   });
   btn.disabled = false;
-  if (data.ok) window.location.reload(); else alert('Error al crear código');
+  if (data.ok) window.location.reload(); else showAdminMsg('Error al crear código', false);
 };
 
 window.approveFb = async function(fbId, approve) {
   const url = `/admin/feedback/${fbId}/${approve ? 'approve' : 'reject'}`;
   const data = await fetch(url, { method: 'POST' }).then(r => r.json());
-  if (data.ok) window.location.reload(); else alert('Error');
+  if (data.ok) window.location.reload(); else showAdminMsg('Error', false);
 };
 </script>
 {% endblock %}
