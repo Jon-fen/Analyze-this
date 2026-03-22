@@ -437,15 +437,16 @@ def _auth_admin_url(path: str) -> str:
 
 
 def admin_send_reset(user_email: str) -> Tuple[bool, str]:
-    """Send password reset email to a user via Supabase admin API."""
+    """Send password reset email to a user via Supabase /auth/v1/recover (actually sends email)."""
     try:
         s = get_settings()
-        if not s.supabase_service_key:
-            return False, "SUPABASE_SERVICE_KEY no configurada"
+        key = s.supabase_service_key or s.supabase_key
+        redirect = f"{RAILWAY_URL}/auth/callback?type=recovery"
         resp = httpx.post(
-            _auth_admin_url("generate_link"),
-            headers=_auth_admin_headers(),
-            json={"type": "recovery", "email": user_email},
+            f"{s.supabase_url}/auth/v1/recover",
+            headers={"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"email": user_email},
+            params={"redirect_to": redirect},
             timeout=10,
         )
         if resp.status_code >= 400:
