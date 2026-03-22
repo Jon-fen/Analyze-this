@@ -115,7 +115,9 @@ async def analyze(
 
     # ── Extract CV text ────────────────────────────────────────────────────────
     cv_text = ""
+    cv_filename = ""
     if cv_file and cv_file.filename:
+        cv_filename = cv_file.filename
         file_bytes = await cv_file.read()
         fname = cv_file.filename.lower()
         try:
@@ -206,6 +208,7 @@ async def analyze(
         "model_used": cv_data.get("_model_used", "haiku"),
         "is_guest": not bool(user),
         "email_configured": get_settings().email_configured,
+        "cv_filename": cv_filename,
     })
 
     # Set guest cookie if needed

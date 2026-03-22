@@ -9,7 +9,7 @@
     <div class="hero-text">
       <div class="hero-badge">
         <span class="badge-dot"></span>
-        Powered by Claude AI · Optimizado para ATS de Latinoamérica
+        <span>Detectando ATS: </span><span class="ats-rotator" id="ats-rotator">Workday</span>
       </div>
       <h1 class="hero-title">
         Tu CV, listo para <span class="highlight">cada oferta</span>
@@ -124,13 +124,13 @@
             </div>
           </label>
 
-          <label class="toggle-card" id="toggle-career">
+          <label class="toggle-card" id="toggle-career" title="Actívalo si apuntas a un sector diferente al de tu experiencia. Nuestro motor prioriza habilidades transferibles y reorganiza tu trayectoria para alinearse con el nuevo campo — en lugar de filtrar solo lo reciente.">
             <input type="checkbox" name="career_change" value="true" id="career-check">
             <div class="toggle-card-inner">
               <div class="toggle-card-icon">🔄</div>
               <div class="toggle-card-text">
-                <span class="toggle-card-title">Cambio de carrera</span>
-                <span class="toggle-card-sub">Incluye toda la trayectoria</span>
+                <span class="toggle-card-title">Cambio de carrera <span class="toggle-info-icon">ⓘ</span></span>
+                <span class="toggle-card-sub">Prioriza habilidades transferibles</span>
               </div>
               <div class="toggle-switch"></div>
             </div>
@@ -258,7 +258,7 @@
         <div class="step-number">02</div>
         <div class="step-icon">🎯</div>
         <h3 class="step-title">Pega la oferta</h3>
-        <p class="step-text">Pega el texto o la URL del aviso. Claude detecta el ATS de esa empresa y adapta el formato.</p>
+        <p class="step-text">Pega el texto o la URL del aviso. Detectamos el ATS de esa empresa y adaptamos el formato exacto que ese sistema espera.</p>
       </div>
       <div class="step-card">
         <div class="step-number">03</div>
@@ -274,8 +274,8 @@
 <section class="vs-section">
   <div class="section-inner" style="max-width:880px">
     <div class="section-header">
-      <h2 class="section-title">¿Por qué no basta con ChatGPT?</h2>
-      <p class="section-sub">ChatGPT genera texto. Analyze-This optimiza para el sistema que decide si tu CV pasa o no.</p>
+      <h2 class="section-title">¿Por qué no basta con un chat de IA genérico?</h2>
+      <p class="section-sub">Un chat de IA genera texto. Analyze-This optimiza para el sistema que decide si tu CV pasa o no.</p>
     </div>
     <div class="vs-grid">
 
@@ -283,7 +283,7 @@
         <div class="vs-card-header">
           <div class="vs-card-icon">🤖</div>
           <div>
-            <div class="vs-card-title">ChatGPT / Gemini</div>
+            <div class="vs-card-title">Chat de IA genérico</div>
             <div class="vs-card-subtitle">Mejorar redacción genérica</div>
           </div>
         </div>
@@ -365,18 +365,20 @@
   </div>
 </section>
 
-<!-- ── ATS trust section ── -->
+<!-- ── ATS detection banner ── -->
 <section class="section section-alt">
   <div class="section-inner">
-    <p class="ats-label">Optimizado para los ATS más usados en Latinoamérica</p>
-    <div class="ats-grid">
-      <div class="ats-badge">Buk</div>
-      <div class="ats-badge">Workday</div>
-      <div class="ats-badge">Greenhouse</div>
-      <div class="ats-badge">Rankmi</div>
-      <div class="ats-badge">Talently</div>
-      <div class="ats-badge">SAP SuccessFactors</div>
-      <div class="ats-badge">Lever</div>
+    <p class="ats-label">Detección adaptiva de ATS en cada oferta</p>
+    <div class="ats-detect-banner">
+      <div class="ats-detect-icon">🔍</div>
+      <div class="ats-detect-body">
+        <div class="ats-detect-title">Identificamos el ATS automáticamente</div>
+        <div class="ats-detect-sub">Buk · Workday · Greenhouse · Rankmi · Talently · SAP SuccessFactors · Lever · y más</div>
+        <div class="ats-detect-bar">
+          <div class="ats-detect-fill" id="ats-detect-fill"></div>
+          <span class="ats-detect-status" id="ats-detect-status">Analizando oferta…</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -690,5 +692,55 @@
 
   const baGrid = document.getElementById('ba-grid');
   if (baGrid) baObserver.observe(baGrid);
+
+  /* ── Rotating ATS badge (FEAT-3a) ── */
+  const atsList = ['Workday','Buk','Greenhouse','Rankmi','Talently','SuccessFactors','Lever','iCIMS'];
+  const rotator = document.getElementById('ats-rotator');
+  if (rotator) {
+    let idx = 0;
+    setInterval(() => {
+      rotator.style.opacity = '0';
+      rotator.style.transform = 'translateY(-6px)';
+      setTimeout(() => {
+        idx = (idx + 1) % atsList.length;
+        rotator.textContent = atsList[idx];
+        rotator.style.transition = 'opacity 0.3s, transform 0.3s';
+        rotator.style.opacity = '1';
+        rotator.style.transform = 'translateY(0)';
+      }, 300);
+    }, 2000);
+    rotator.style.transition = 'opacity 0.3s, transform 0.3s';
+    rotator.style.display = 'inline-block';
+  }
+
+  /* ── ATS detection animation (FEAT-5) ── */
+  const fill = document.getElementById('ats-detect-fill');
+  const status = document.getElementById('ats-detect-status');
+  const atsNames = ['Workday','Buk','Greenhouse','Rankmi','Talently','SuccessFactors','Lever'];
+  if (fill && status) {
+    let w = 0;
+    const detectInterval = setInterval(() => {
+      w = Math.min(w + 1.2, 100);
+      fill.style.width = w + '%';
+      if (w >= 30 && w < 60) status.textContent = 'Comparando con base de ATS…';
+      else if (w >= 60 && w < 95) status.textContent = 'Adaptando keywords…';
+      else if (w >= 95) {
+        clearInterval(detectInterval);
+        const name = atsNames[Math.floor(Math.random() * atsNames.length)];
+        status.textContent = '✅ ATS detectado: ' + name;
+        setTimeout(() => {
+          w = 0; fill.style.transition = 'none'; fill.style.width = '0%';
+          setTimeout(() => { fill.style.transition = 'width 0.3s'; status.textContent = 'Analizando oferta…'; }, 200);
+          const detectInterval2 = setInterval(() => {
+            w = Math.min(w + 1.2, 100);
+            fill.style.width = w + '%';
+            if (w >= 30 && w < 60) status.textContent = 'Comparando con base de ATS…';
+            else if (w >= 60 && w < 95) status.textContent = 'Adaptando keywords…';
+            else if (w >= 95) { clearInterval(detectInterval2); const n2 = atsNames[Math.floor(Math.random()*atsNames.length)]; status.textContent = '✅ ATS detectado: '+n2; }
+          }, 80);
+        }, 2500);
+      }
+    }, 80);
+  }
 </script>
 {% endblock %}
