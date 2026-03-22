@@ -53,3 +53,25 @@ def send_pdf_email(
         return True, ""
     except Exception as e:
         return False, str(e)
+
+
+def send_notification_email(to_email: str, subject: str, body_html: str) -> Tuple[bool, str]:
+    """Send a plain notification email (no attachment). Returns (ok, error_message)."""
+    s = get_settings()
+    if not _smtp_configured():
+        return False, "Email no configurado."
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = s.smtp_from or s.smtp_user
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body_html, "html", "utf-8"))
+        port = int(s.smtp_port or 587)
+        with smtplib.SMTP(s.smtp_host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(s.smtp_user, s.smtp_pass)
+            server.sendmail(msg["From"], [to_email], msg.as_bytes())
+        return True, ""
+    except Exception as e:
+        return False, str(e)

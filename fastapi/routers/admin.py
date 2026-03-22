@@ -11,8 +11,9 @@ from services.session import (
     get_all_codes, create_code, toggle_code, admin_assign_code,
     get_all_feedback, approve_feedback,
     admin_send_reset, admin_ban_user, admin_delete_user,
-    PLAN_LIMITS,
+    PLAN_LIMITS, _sb_admin,
 )
+from services.email_service import send_notification_email
 
 router = APIRouter(prefix="/admin")
 
@@ -47,6 +48,25 @@ async def change_plan(request: Request, user_id: str, plan: str = Form(...)):
     if not _require_admin(request):
         return JSONResponse({"ok": False, "error": "no auth"})
     ok, err = update_user_plan(user_id, plan)
+    if ok:
+        try:
+            profile = _sb_admin().table("profiles").select("email").eq("id", user_id).maybe_single().execute()
+            email = (profile.data or {}).get("email", "")
+            if email:
+                plan_label = PLAN_LIMITS.get(plan, plan)
+                send_notification_email(
+                    email,
+                    "Tu plan en Analyze-This ha cambiado",
+                    f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+                    <h2 style="color:#1B4F8A">Analyze-This · CV Optimizer ATS</h2>
+                    <p>Hola,</p>
+                    <p>Tu plan ha sido actualizado a <strong>{plan.upper()}</strong> ({plan_label} análisis/mes).</p>
+                    <p>Inicia sesión en <a href="https://analyze-this-production.up.railway.app">Analyze-This</a> para usar tus nuevos créditos.</p>
+                    <p style="font-size:12px;color:#888">Si crees que esto es un error, responde a este email.</p>
+                    </div>""",
+                )
+        except Exception:
+            pass
     return JSONResponse({"ok": ok, "error": err})
 
 
