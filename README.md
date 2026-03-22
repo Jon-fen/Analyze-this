@@ -13,3 +13,4 @@ Optimiza tu CV para cualquier oferta laboral y supera los filtros automáticos A
 ---
 
 https://jon-fen.github.io/Analyze-this/ 
+Gama Soon: http://analyze-this-production.up.railway.app/
