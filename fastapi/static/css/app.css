@@ -285,8 +285,9 @@ a:hover { text-decoration: underline; }
 /* Advanced options */
 .advanced-details { margin-bottom: 1.2rem; }
 .advanced-toggle {
-  font-size: 0.78rem; color: var(--text3); font-weight: 500;
+  font-size: 0.82rem; color: var(--blue); font-weight: 600;
   cursor: pointer; list-style: none; padding: 4px 0;
+  text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
 }
 .advanced-toggle::-webkit-details-marker { display: none; }
 .advanced-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem; }
