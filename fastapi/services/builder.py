@@ -322,9 +322,9 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         base.update(kw)
         return ParagraphStyle(name, **base)
 
-    s_name    = sty("nm",  fontSize=18, fontName="Helvetica-Bold", textColor=C_T, alignment=TA_CENTER, spaceAfter=3)
-    s_title   = sty("tit", fontSize=11, fontName="Helvetica-Bold", textColor=C_H, alignment=TA_CENTER, spaceAfter=3)
-    s_contact = sty("con", fontSize=8.5, textColor=C_S, alignment=TA_CENTER, spaceAfter=6)
+    s_name    = sty("nm",  fontSize=18, fontName="Helvetica-Bold", textColor=C_T, alignment=TA_CENTER, spaceAfter=8)
+    s_title   = sty("tit", fontSize=11, fontName="Helvetica-Bold", textColor=C_H, alignment=TA_CENTER, spaceAfter=6, spaceBefore=4)
+    s_contact = sty("con", fontSize=8.5, textColor=C_S, alignment=TA_CENTER, spaceAfter=12)
     s_sec     = sty("sec", fontSize=9.5, fontName="Helvetica-Bold", textColor=C_H, spaceBefore=10, spaceAfter=2)
     s_body    = sty("bod", fontSize=9, textColor=C_T, leading=14, spaceAfter=2)
     s_italic  = sty("ita", fontSize=8.5, textColor=C_S, leading=13, spaceAfter=1)
@@ -415,7 +415,7 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
         topMargin=1.5*cm, bottomMargin=2*cm)
 
     s_hdr   = ParagraphStyle("s_hdr",  fontName="Helvetica-Bold", fontSize=9,  textColor=_RL_LIGHT)
-    s_title = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=18, textColor=_RL_NAVY, spaceBefore=6, spaceAfter=4)
+    s_title = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=18, textColor=_RL_NAVY, spaceBefore=6, spaceAfter=14)
     s_body  = ParagraphStyle("s_body",  fontName="Helvetica", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
     s_bold  = ParagraphStyle("s_bold",  fontName="Helvetica-Bold", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
     s_foot  = ParagraphStyle("s_foot",  fontName="Helvetica", fontSize=8, textColor=_RL_LIGHT, alignment=TA_CENTER)
@@ -461,7 +461,9 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_LIGHT, spaceAfter=6))
     story.append(Paragraph(
-        "Generado por <b>Analyze-This · CV Optimizer ATS</b> · analyze-this-production.up.railway.app",
+        'Generado por <b>Analyze-This · CV Optimizer ATS</b> · '
+        '<a href="https://analyze-this-production.up.railway.app" color="#6366F1">'
+        'analyze-this-production.up.railway.app</a>',
         s_foot))
     doc.build(story)
     buf.seek(0)
