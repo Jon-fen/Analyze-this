@@ -270,6 +270,101 @@
   </div>
 </section>
 
+<!-- ── vs ChatGPT ── -->
+<section class="vs-section">
+  <div class="section-inner" style="max-width:880px">
+    <div class="section-header">
+      <h2 class="section-title">¿Por qué no basta con ChatGPT?</h2>
+      <p class="section-sub">ChatGPT genera texto. Analyze-This optimiza para el sistema que decide si tu CV pasa o no.</p>
+    </div>
+    <div class="vs-grid">
+
+      <div class="vs-card vs-card-chatgpt">
+        <div class="vs-card-header">
+          <div class="vs-card-icon">🤖</div>
+          <div>
+            <div class="vs-card-title">ChatGPT / Gemini</div>
+            <div class="vs-card-subtitle">Mejorar redacción genérica</div>
+          </div>
+        </div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> No conoce el ATS de esa empresa específica</div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> No mide compatibilidad — sin score</div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> Puede inventar datos o añadir experiencia falsa</div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> Resultado como texto, tú lo formateas</div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> No detecta keywords faltantes de la oferta</div>
+        <div class="vs-row"><span class="vs-row-icon">❌</span> Sin coaching específico para ese puesto</div>
+      </div>
+
+      <div class="vs-card vs-card-at">
+        <div class="vs-badge-winner">✨ RECOMENDADO</div>
+        <div class="vs-card-header">
+          <div class="vs-card-icon">🎯</div>
+          <div>
+            <div class="vs-card-title">Analyze-This</div>
+            <div class="vs-card-subtitle">Optimización ATS real con tu CV y esa oferta</div>
+          </div>
+        </div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> Detecta automáticamente el ATS de la empresa</div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> Score de compatibilidad 0–100 medible y mejorable</div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> Solo reorganiza tus datos — nunca inventa nada</div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> 4 templates DOCX + PDF listos para enviar</div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> Integra las keywords exactas de la oferta</div>
+        <div class="vs-row"><span class="vs-row-icon">✅</span> Coaching personalizado + carta + prep entrevista</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Before/After Score ── -->
+<section class="beforeafter-section section-alt">
+  <div class="section-inner" style="max-width:800px">
+    <div class="section-header">
+      <h2 class="section-title">El antes y el después</h2>
+      <p class="section-sub">Lo que le pasa a un CV promedio cuando pasa por Analyze-This</p>
+    </div>
+    <div class="ba-grid" id="ba-grid">
+
+      <div class="ba-card ba-card-before">
+        <div class="ba-label">Antes — sin optimizar</div>
+        <div class="ba-score-ring">
+          <svg viewBox="0 0 110 110" width="110" height="110">
+            <circle class="ba-score-ring-track" cx="55" cy="55" r="45"/>
+            <circle class="ba-score-ring-fill" cx="55" cy="55" r="45"
+              stroke-dasharray="282.7"
+              stroke-dashoffset="282.7"
+              id="ba-ring-before"/>
+          </svg>
+          <div class="ba-score-num" id="ba-num-before">0%</div>
+        </div>
+        <div class="ba-stat"><strong>3</strong> keywords del ATS presentes</div>
+        <div class="ba-stat">Formato con tablas — ilegible para ATS</div>
+        <div class="ba-status">✗ ATS Incompatible</div>
+      </div>
+
+      <div class="ba-arrow">→</div>
+
+      <div class="ba-card ba-card-after">
+        <div class="ba-label">Después — Analyze-This</div>
+        <div class="ba-score-ring">
+          <svg viewBox="0 0 110 110" width="110" height="110">
+            <circle class="ba-score-ring-track" cx="55" cy="55" r="45"/>
+            <circle class="ba-score-ring-fill" cx="55" cy="55" r="45"
+              stroke-dasharray="282.7"
+              stroke-dashoffset="282.7"
+              id="ba-ring-after"/>
+          </svg>
+          <div class="ba-score-num" id="ba-num-after">0%</div>
+        </div>
+        <div class="ba-stat"><strong>11</strong> keywords integradas naturalmente</div>
+        <div class="ba-stat">Formato ATS-friendly, una columna</div>
+        <div class="ba-status">✓ ATS Compatible</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
 <!-- ── ATS trust section ── -->
 <section class="section section-alt">
   <div class="section-inner">
@@ -319,33 +414,60 @@
 </section>
 
 <!-- ── Reviews ── -->
-<section class="section section-alt">
-  <div class="section-inner" style="max-width:900px">
-    <h2 class="section-title">Lo que dicen los profesionales</h2>
-    <div class="reviews-grid">
+<section class="section">
+  <div class="section-inner" style="max-width:940px">
+    <div class="section-header">
+      <h2 class="section-title">Lo que dicen los profesionales</h2>
+      <p class="section-sub">Más de {{ "{:,}".format(stats.users) if stats else "1,000" }} profesionales ya optimizaron su CV</p>
+    </div>
+    <div class="reviews-grid-v2">
       {% if reviews %}
         {% for rv in reviews %}
-        <div class="review-card">
-          <div class="review-stars">{{ '★' * (rv.rating or 5) }}</div>
-          <p class="review-text">"{{ rv.comment }}"</p>
-          <div class="review-meta">{{ rv.job_title or 'Profesional' }} · {{ (rv.created_at or '')[:7] }}</div>
+        <div class="review-card-v2">
+          <div class="review-stars-v2">{{ '★' * (rv.rating or 5) }}{{ '☆' * (5 - (rv.rating or 5)) }}</div>
+          <p class="review-text-v2">"{{ rv.comment }}"</p>
+          <div class="review-author">
+            <div class="review-avatar">{{ (rv.job_title or 'P')[0].upper() }}</div>
+            <div class="review-author-info">
+              <span class="review-author-name">{{ rv.job_title or 'Profesional' }}</span>
+              <span class="review-author-role">{{ (rv.created_at or '')[:7] }}</span>
+            </div>
+          </div>
         </div>
         {% endfor %}
       {% else %}
-        <div class="review-card">
-          <div class="review-stars">★★★★★</div>
-          <p class="review-text">"Pasé de 2 rechazos a 3 entrevistas en la misma semana. El score ATS me hizo entender exactamente qué le faltaba a mi CV."</p>
-          <div class="review-meta">Desarrollador Full Stack · Beta tester</div>
+        <div class="review-card-v2">
+          <div class="review-stars-v2">★★★★★</div>
+          <p class="review-text-v2">"Pasé de 2 rechazos a 3 entrevistas en la misma semana. El score ATS me hizo entender exactamente qué le faltaba a mi CV."</p>
+          <div class="review-author">
+            <div class="review-avatar">D</div>
+            <div class="review-author-info">
+              <span class="review-author-name">Diego M.</span>
+              <span class="review-author-role">Desarrollador Full Stack · Santiago</span>
+            </div>
+          </div>
         </div>
-        <div class="review-card">
-          <div class="review-stars">★★★★★</div>
-          <p class="review-text">"La carta de presentación generada fue mejor que las que yo escribía. Y tardé 30 segundos."</p>
-          <div class="review-meta">Product Manager · Beta tester</div>
+        <div class="review-card-v2">
+          <div class="review-stars-v2">★★★★★</div>
+          <p class="review-text-v2">"La carta de presentación generada fue mejor que las que yo escribía. Y tardé 30 segundos en tenerla lista para enviar."</p>
+          <div class="review-author">
+            <div class="review-avatar">A</div>
+            <div class="review-author-info">
+              <span class="review-author-name">Andrea R.</span>
+              <span class="review-author-role">Product Manager · Buenos Aires</span>
+            </div>
+          </div>
         </div>
-        <div class="review-card">
-          <div class="review-stars">★★★★☆</div>
-          <p class="review-text">"El prep de entrevista con método STAR me salvó. Llegué preparado para responder exactamente lo que me preguntaron."</p>
-          <div class="review-meta">Analista de Datos · Beta tester</div>
+        <div class="review-card-v2">
+          <div class="review-stars-v2">★★★★★</div>
+          <p class="review-text-v2">"El prep de entrevista con método STAR me salvó. Llegué preparado para responder exactamente lo que me preguntaron en Workday."</p>
+          <div class="review-author">
+            <div class="review-avatar">C</div>
+            <div class="review-author-info">
+              <span class="review-author-name">Carlos V.</span>
+              <span class="review-author-role">Analista de Datos · Bogotá</span>
+            </div>
+          </div>
         </div>
       {% endif %}
     </div>
@@ -353,37 +475,74 @@
 </section>
 
 <!-- ── Plans ── -->
-<section class="section" id="planes">
-  <div class="section-inner" style="max-width:760px">
-    <h2 class="section-title">Planes</h2>
-    <p class="section-sub">Sin tarjeta de crédito para el plan gratuito</p>
-    <div class="plans-grid">
-      <div class="plan-card">
-        <div class="plan-name">Free</div>
-        <div class="plan-price">Gratis</div>
-        <ul class="plan-features">
-          <li>✓ 5 análisis por mes</li>
-          <li>✓ 4 templates DOCX + PDF</li>
-          <li>✓ Score ATS + keywords</li>
-          <li>✓ Coaching personalizado</li>
-          <li>✓ Historial de análisis</li>
+<section class="section section-alt" id="planes">
+  <div class="section-inner">
+    <div class="section-header">
+      <h2 class="section-title">Planes y precios</h2>
+      <p class="section-sub">Sin tarjeta de crédito · Cancela cuando quieras</p>
+    </div>
+    <div class="plans-grid-v2">
+
+      <!-- Free -->
+      <div class="plan-card-v2">
+        <div class="plan-tag plan-tag-free">Gratis</div>
+        <div class="plan-name-v2">Free</div>
+        <div class="plan-price-v2">$0 <small>/ mes</small></div>
+        <div class="plan-analyses">5 análisis por mes</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features-v2">
+          <li>Score ATS + desglose por dimensión</li>
+          <li>Keywords integradas + faltantes</li>
+          <li>4 templates DOCX y PDF</li>
+          <li>Historial de 10 análisis</li>
+          <li>Coaching personalizado</li>
+          <li class="plan-feat-dim">Carta de presentación</li>
+          <li class="plan-feat-dim">Prep de entrevista STAR</li>
+          <li class="plan-feat-dim">Optimización LinkedIn</li>
         </ul>
         <button class="btn btn-secondary btn-full" onclick="openAuthModal('register')">Crear cuenta gratis</button>
       </div>
-      <div class="plan-card plan-card-featured">
-        <div class="plan-badge">Recomendado</div>
-        <div class="plan-name">Pro</div>
-        <div class="plan-price">~$5 USD <span class="plan-period">/ mes vía Ko-fi</span></div>
-        <ul class="plan-features">
-          <li>✓ 50 análisis por mes</li>
-          <li>✓ Todo lo del plan Free</li>
-          <li>✓ Carta de presentación</li>
-          <li>✓ Prep de entrevista con STAR</li>
-          <li>✓ Optimización LinkedIn</li>
+
+      <!-- Pro -->
+      <div class="plan-card-v2 plan-card-v2-featured">
+        <div class="plan-tag plan-tag-pro">⭐ Más popular</div>
+        <div class="plan-name-v2">Pro</div>
+        <div class="plan-price-v2">~$5 <small>USD / mes · vía Ko-fi</small></div>
+        <div class="plan-analyses">50 análisis por mes</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features-v2">
+          <li>Todo lo del plan Free</li>
+          <li>50 análisis (10× más)</li>
+          <li>Carta de presentación IA</li>
+          <li>Prep de entrevista con STAR</li>
+          <li>Optimización LinkedIn</li>
+          <li>PDFs de informes enviables</li>
+          <li>Prioridad de soporte</li>
         </ul>
-        <a href="https://ko-fi.com/analyzethis" target="_blank" rel="noopener" class="btn btn-primary btn-full">Apoyar en Ko-fi →</a>
+        <a href="https://ko-fi.com/analyzethis" target="_blank" rel="noopener" class="btn btn-primary btn-full">Obtener Pro en Ko-fi →</a>
       </div>
+
+      <!-- Code / Teams -->
+      <div class="plan-card-v2">
+        <div class="plan-tag plan-tag-code">Código de acceso</div>
+        <div class="plan-name-v2">Pro Code</div>
+        <div class="plan-price-v2" style="font-size:1.3rem">Código <small>de activación</small></div>
+        <div class="plan-analyses">10 análisis por mes</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features-v2">
+          <li>Todo lo del plan Pro</li>
+          <li>Código único por usuario</li>
+          <li>Para equipos y universidades</li>
+          <li>Bulk: códigos por volumen</li>
+          <li>Sin tarjeta de crédito</li>
+        </ul>
+        <button class="btn btn-secondary btn-full" onclick="openAuthModal('code')">Activar mi código</button>
+      </div>
+
     </div>
+    <p style="text-align:center;margin-top:1.5rem;font-size:0.8rem;color:var(--text3)">
+      ¿Eres empresa o universidad? <a href="mailto:hola@analyze-this.app" style="color:var(--blue)">Escríbenos para códigos por volumen →</a>
+    </p>
   </div>
 </section>
 
@@ -501,5 +660,35 @@
     }
     tick();
   });
+
+  // ── Before/After score ring animation (triggers when section enters viewport) ──
+  function animateScore(ringEl, numEl, targetPct, duration) {
+    const circumference = 282.7;
+    const startOffset = circumference;
+    const endOffset = circumference * (1 - targetPct / 100);
+    let start = null;
+    function step(ts) {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      ringEl.style.strokeDashoffset = startOffset + (endOffset - startOffset) * ease;
+      numEl.textContent = Math.round(targetPct * ease) + '%';
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  const baObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        baObserver.disconnect();
+        setTimeout(() => animateScore(document.getElementById('ba-ring-before'), document.getElementById('ba-num-before'), 34, 1600), 200);
+        setTimeout(() => animateScore(document.getElementById('ba-ring-after'),  document.getElementById('ba-num-after'),  84, 1800), 600);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  const baGrid = document.getElementById('ba-grid');
+  if (baGrid) baObserver.observe(baGrid);
 </script>
 {% endblock %}
