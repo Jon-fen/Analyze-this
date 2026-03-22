@@ -2,8 +2,72 @@
 Claude optimization service — extracted from app2.py, Streamlit-free.
 """
 import json
+import re
 import time
+import unicodedata
 import anthropic
+
+
+def _sanitize_cv_text(text: str) -> str:
+    """Normalise unicode, fix typographic quotes, strip control chars."""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKC", text)
+    text = (text
+        .replace("\u201c", '"').replace("\u201d", '"')
+        .replace("\u2018", "'").replace("\u2019", "'")
+        .replace("\u00ab", '"').replace("\u00bb", '"')
+        .replace("\x00", "")
+        .replace("\r\n", "\n").replace("\r", "\n"))
+    text = re.sub(r'\n{4,}', '\n\n\n', text)
+    lines = [re.sub(r'  +', ' ', l).strip() for l in text.split('\n')]
+    return '\n'.join(lines).strip()
+
+
+def _parse_claude_response(raw: str) -> dict:
+    """Robust JSON parser with three fallback strategies."""
+    if "```json" in raw:
+        raw = raw.split("```json")[1].split("```")[0].strip()
+    elif "```" in raw:
+        raw = raw.split("```")[1].split("```")[0].strip()
+
+    # Attempt 1: direct parse
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 2: brace-balanced extraction
+    try:
+        start = raw.index('{')
+        depth, end = 0, start
+        for i, ch in enumerate(raw[start:], start):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        return json.loads(raw[start:end])
+    except (ValueError, json.JSONDecodeError):
+        pass
+
+    # Attempt 3: truncate to last complete field
+    try:
+        truncated = raw.strip()
+        truncated = re.sub(r',\s*"[^"]*$', '', truncated)
+        truncated = re.sub(r',\s*$', '', truncated)
+        if not truncated.endswith('}'):
+            truncated += '}'
+        return json.loads(truncated)
+    except json.JSONDecodeError:
+        pass
+
+    raise ValueError(
+        "El CV contiene caracteres especiales que dificultaron el análisis. "
+        "Intenta pegar el texto directamente en el campo de texto."
+    )
 
 MAX_CV_CHARS = 25_000
 MAX_CV_CHARS_CAREER = 80_000
@@ -19,6 +83,7 @@ def optimize_cv(
     cv_only: bool = False,
     output_lang: str = "es",
 ) -> dict:
+    cv_text = _sanitize_cv_text(cv_text)
     limit = MAX_CV_CHARS_CAREER if career_change else MAX_CV_CHARS
     was_truncated = len(cv_text) > limit
     cv_text = cv_text[:limit]
@@ -135,13 +200,9 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = msg.content[0].text.strip()
-            if "```json" in raw:
-                raw = raw.split("```json")[1].split("```")[0].strip()
-            elif "```" in raw:
-                raw = raw.split("```")[1].split("```")[0].strip()
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
+                return _parse_claude_response(raw)
+            except (ValueError, json.JSONDecodeError):
                 if attempt == 0:
                     time.sleep(1)
                     continue

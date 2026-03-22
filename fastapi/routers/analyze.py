@@ -11,6 +11,7 @@ from config import get_settings
 from deps import templates
 from services.claude import optimize_cv
 from services.extractor import extract_pdf, extract_docx, scrape_job_url, is_valid_url
+from services.pdf_ocr import is_scanned_pdf, extract_pdf_with_ocr
 from services.builder import DOCX_BUILDERS, build_cv_pdf, build_analysis_pdf, TEMPLATES_META
 from services.session import (
     save_history, save_guest_analysis, save_cv_copy,
@@ -23,6 +24,10 @@ router = APIRouter()
 # ─── In-memory result cache ────────────────────────────────────────────────────
 _result_cache: dict = {}
 _CACHE_TTL = 3600
+
+# ─── In-memory OCR pending store ───────────────────────────────────────────────
+_ocr_pending: dict = {}
+_OCR_TTL = 600  # 10 minutes
 
 
 def _store_result(cv_data: dict) -> str:
@@ -127,6 +132,23 @@ async def analyze(
         try:
             if fname.endswith(".pdf"):
                 cv_text = extract_pdf(file_bytes)
+                if is_scanned_pdf(file_bytes, cv_text):
+                    pending_id = str(uuid.uuid4())
+                    now = time.time()
+                    _ocr_pending[pending_id] = {
+                        "bytes": file_bytes,
+                        "filename": cv_file.filename,
+                        "ts": now,
+                    }
+                    # Purge expired entries
+                    expired = [k for k, v in _ocr_pending.items() if now - v["ts"] > _OCR_TTL]
+                    for k in expired:
+                        del _ocr_pending[k]
+                    return JSONResponse({
+                        "needs_ocr": True,
+                        "pending_id": pending_id,
+                        "filename": cv_file.filename,
+                    })
             elif fname.endswith(".docx"):
                 cv_text = extract_docx(file_bytes)
             else:
@@ -165,6 +187,8 @@ async def analyze(
             cv_only=cv_only_bool,
             output_lang=output_lang,
         )
+    except ValueError as e:
+        return _err(str(e), cv_text_raw)
     except Exception as e:
         return _err(f"Error al analizar con Claude: {e}")
 
@@ -279,6 +303,128 @@ async def feedback(
     em  = user["email"] if user else email
     ok = save_feedback(uid, em, rating, comment, job_title)
     return JSONResponse({"ok": ok})
+
+
+@router.post("/analyze/confirm-ocr", response_class=HTMLResponse)
+async def confirm_ocr(
+    request: Request,
+    pending_id: str = Form(...),
+    job_input: str = Form(""),
+    max_pages: int = Form(2),
+    font_size: float = Form(11.0),
+    font_family: str = Form("Calibri"),
+    career_change: Optional[str] = Form(None),
+    cv_only: Optional[str] = Form(None),
+    output_lang: str = Form("es"),
+    save_cv_copy_toggle: Optional[str] = Form(None),
+):
+    user = getattr(request.state, "user", None)
+    settings = get_settings()
+
+    def _err(msg, cv_text_raw_val=""):
+        return templates.TemplateResponse(request, "index.html", {
+            "user": user,
+            "error": msg,
+            "cv_text_raw": cv_text_raw_val,
+            "stats": get_global_stats(),
+            "reviews": get_public_reviews(),
+        })
+
+    entry = _ocr_pending.get(pending_id)
+    if not entry or time.time() - entry["ts"] > _OCR_TTL:
+        return _err("La sesión OCR expiró. Por favor, sube el archivo nuevamente.")
+
+    file_bytes = entry["bytes"]
+    cv_filename = entry["filename"]
+
+    try:
+        cv_text = extract_pdf_with_ocr(file_bytes, settings.anthropic_api_key)
+    except ValueError as e:
+        return _err(str(e))
+    except Exception as e:
+        return _err(f"Error al procesar el PDF con OCR: {e}")
+
+    del _ocr_pending[pending_id]
+
+    career_change_bool = career_change is not None and career_change.lower() not in ("false", "0", "")
+    cv_only_bool = cv_only is not None and cv_only.lower() not in ("false", "0", "")
+    save_cv_copy_bool = save_cv_copy_toggle is not None and save_cv_copy_toggle.lower() not in ("false", "0", "")
+
+    job_text = ""
+    job_input = job_input.strip()
+    if is_valid_url(job_input):
+        try:
+            job_text = scrape_job_url(job_input)
+        except ValueError as e:
+            return _err(str(e))
+    elif job_input:
+        job_text = job_input
+
+    if not job_text and not cv_only_bool:
+        cv_only_bool = True
+
+    try:
+        cv_data = optimize_cv(
+            cv_text=cv_text,
+            job_text=job_text,
+            max_pages=max_pages,
+            font_size=font_size,
+            api_key=settings.anthropic_api_key,
+            career_change=career_change_bool,
+            cv_only=cv_only_bool,
+            output_lang=output_lang,
+        )
+    except ValueError as e:
+        return _err(str(e))
+    except Exception as e:
+        return _err(f"Error al analizar con Claude: {e}")
+
+    cv_data["_font_family"] = font_family
+    cv_data["_font_size"] = font_size
+    result_id = _store_result(cv_data)
+    score = cv_data.get("score_match", 0)
+    ats_ok = cv_data.get("ats_compatible", True)
+
+    if user:
+        history_id = save_history(
+            user["id"],
+            cv_data.get("titulo_profesional", ""),
+            score,
+            ats_ok,
+            cv_filename=cv_filename,
+        )
+        if save_cv_copy_bool and history_id:
+            save_cv_copy(user["id"], history_id, cv_text, cv_data)
+        if user.get("plan") != "admin":
+            consume_credit(user["id"], user["credits_used"])
+    else:
+        save_guest_analysis()
+
+    response = templates.TemplateResponse(request, "results.html", {
+        "user": user,
+        "cv": cv_data,
+        "result_id": result_id,
+        "templates_meta": TEMPLATES_META,
+        "score": score,
+        "ats_ok": ats_ok,
+        "ats_detected": cv_data.get("ats_detectado", ""),
+        "ats_reason": cv_data.get("ats_razon", ""),
+        "score_explain": cv_data.get("score_explicacion", ""),
+        "score_desglose": cv_data.get("score_desglose", {}),
+        "keywords_ok": cv_data.get("keywords_integradas", []),
+        "keywords_miss": cv_data.get("keywords_faltantes", []),
+        "coaching": cv_data.get("coaching", []),
+        "was_truncated": cv_data.get("_was_truncated", False),
+        "model_used": cv_data.get("_model_used", "haiku"),
+        "is_guest": not bool(user),
+        "email_configured": settings.email_configured,
+        "cv_filename": cv_filename,
+    })
+
+    if not user:
+        response.set_cookie("guest_used", "1", max_age=86400, httponly=True, samesite="lax")
+
+    return response
 
 
 @router.get("/api/reviews")

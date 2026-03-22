@@ -70,6 +70,12 @@
         <p class="form-sub">{% if user %}{{ user.credits_remaining }} análisis restantes este mes{% else %}1 análisis gratuito · Sin registro{% endif %}</p>
       </div>
 
+      <!-- Inline JS error (BUG-CRÍTICO-2) -->
+      <div id="inline-error" class="alert alert-error hidden" style="margin-bottom:0.75rem">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#DC2626" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="inline-error-msg"></span>
+      </div>
+
       <form id="analyze-form" action="/analyze" method="POST" enctype="multipart/form-data">
 
         <!-- CV Upload -->
@@ -247,6 +253,20 @@
         <div class="loading-bar" id="loading-bar" style="width:5%"></div>
       </div>
       <p class="loading-fact">💡 El 75% de los CVs son rechazados por ATS antes de que un humano los vea.</p>
+    </div>
+  </div>
+
+  <!-- OCR Banner (scanned PDF detection) -->
+  <div id="ocr-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,40,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem">
+    <div style="background:#1A2744;border:1px solid #2D5BE3;border-radius:16px;padding:2rem;max-width:440px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
+      <div style="font-size:2.5rem;margin-bottom:0.75rem">🔍</div>
+      <h3 style="color:#fff;font-size:1.2rem;font-weight:700;margin:0 0 0.5rem">PDF escaneado detectado</h3>
+      <p style="color:#94A3B8;font-size:0.9rem;margin:0 0 1.5rem">Tu PDF parece ser una imagen escaneada — el texto no es seleccionable. Podemos procesarlo con OCR (Claude Vision) para extraer el contenido.</p>
+      <p id="ocr-filename" style="color:#6C8EF5;font-size:0.85rem;font-weight:500;margin:0 0 1.5rem;word-break:break-all"></p>
+      <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap">
+        <button onclick="confirmOcr()" style="background:#2D5BE3;color:#fff;border:none;border-radius:8px;padding:0.7rem 1.5rem;font-size:0.95rem;font-weight:600;cursor:pointer">Usar OCR (recomendado)</button>
+        <button onclick="dismissOcr()" style="background:transparent;color:#94A3B8;border:1px solid #374151;border-radius:8px;padding:0.7rem 1.5rem;font-size:0.95rem;cursor:pointer">Cancelar</button>
+      </div>
     </div>
   </div>
 </section>
@@ -594,48 +614,133 @@
     else warn.classList.add('hidden');
   }
 
+  // ── Inline error helper (BUG-CRÍTICO-2) ──────────────────────────────────
+  function showInlineError(msg) {
+    const el = document.getElementById('inline-error');
+    document.getElementById('inline-error-msg').textContent = msg;
+    el.classList.remove('hidden');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function hideInlineError() {
+    document.getElementById('inline-error').classList.add('hidden');
+  }
+
+  // ── Loading overlay helpers ───────────────────────────────────────────────
+  let _tickTimer = null;
+  function showLoading() {
+    document.getElementById('analyze-form-card').style.display = 'none';
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const steps = [
+      { at:  0, msg: "📄 Extrayendo texto del CV...",                     pct:  8 },
+      { at: 15, msg: "🔍 Analizando la oferta laboral...",                pct: 28 },
+      { at: 25, msg: "🤖 Claude está evaluando compatibilidad ATS...",    pct: 52 },
+      { at: 40, msg: "✍️ Generando coaching personalizado...",            pct: 74 },
+      { at: 55, msg: "⏳ Casi listo... CVs extensos toman hasta 60s",    pct: 90 },
+    ];
+    const msgEl = document.getElementById('loading-msg');
+    const barEl = document.getElementById('loading-bar');
+    const startTs = Date.now();
+    function tick() {
+      const elapsed = (Date.now() - startTs) / 1000;
+      let cur = steps[0];
+      for (const s of steps) { if (elapsed >= s.at) cur = s; else break; }
+      msgEl.textContent = cur.msg;
+      barEl.style.width = cur.pct + '%';
+      _tickTimer = setTimeout(tick, 1000);
+    }
+    tick();
+  }
+  function hideLoading() {
+    clearTimeout(_tickTimer);
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('analyze-form-card').style.display = '';
+  }
+
+  // ── OCR pending state ─────────────────────────────────────────────────────
+  let _ocrPendingId = null;
+  let _ocrFormData = null;
+
+  function showOcrBanner(pendingId, filename, formData) {
+    hideLoading();
+    _ocrPendingId = pendingId;
+    _ocrFormData = formData;
+    document.getElementById('ocr-filename').textContent = filename;
+    const banner = document.getElementById('ocr-banner');
+    banner.classList.remove('hidden');
+    banner.style.display = 'flex';
+  }
+
+  function dismissOcr() {
+    document.getElementById('ocr-banner').classList.add('hidden');
+    document.getElementById('ocr-banner').style.display = 'none';
+    _ocrPendingId = null; _ocrFormData = null;
+  }
+
+  function confirmOcr() {
+    if (!_ocrPendingId || !_ocrFormData) return;
+    document.getElementById('ocr-banner').classList.add('hidden');
+    document.getElementById('ocr-banner').style.display = 'none';
+    const fd = new FormData();
+    fd.append('pending_id', _ocrPendingId);
+    // Copy all non-file fields from original form data
+    for (const [k, v] of _ocrFormData.entries()) {
+      if (k !== 'cv_file') fd.append(k, v);
+    }
+    showLoading();
+    fetch('/analyze/confirm-ocr', { method: 'POST', body: fd })
+      .then(r => r.text())
+      .then(html => { document.open(); document.write(html); document.close(); })
+      .catch(err => { hideLoading(); showInlineError('Error al procesar OCR: ' + err.message); });
+  }
+
+  // ── Main form AJAX submit (BUG-CRÍTICO-2) ────────────────────────────────
   document.getElementById('analyze-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideInlineError();
+
     const cvFile = document.getElementById('cv-file').files[0];
     const cvText = document.getElementById('cv-text-raw').value.trim();
-    if (!cvFile && !cvText) {
-      e.preventDefault();
-      alert('Sube un CV o pega el texto antes de continuar.');
+    const uploadSelected = document.getElementById('upload-selected');
+    const hasFileIndicator = cvFile || !uploadSelected.classList.contains('hidden');
+    if (!hasFileIndicator && !cvText) {
+      showInlineError('Sube un CV o pega el texto antes de continuar.');
       return;
     }
+
     const btn = document.getElementById('submit-btn');
     btn.querySelector('.btn-text').classList.add('hidden');
     btn.querySelector('.btn-loading').classList.remove('hidden');
     btn.disabled = true;
 
-    // Show loading overlay and hide form
-    document.getElementById('analyze-form-card').style.display = 'none';
-    const overlay = document.getElementById('loading-overlay');
-    overlay.classList.remove('hidden');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showLoading();
 
-    // Time-based steps (seconds from submit)
-    const steps = [
-      { at:  0, msg: "📄 Extrayendo texto del CV...",                          pct:  8 },
-      { at: 15, msg: "🔍 Analizando la oferta laboral...",                     pct: 28 },
-      { at: 25, msg: "🤖 Claude está evaluando compatibilidad ATS...",         pct: 52 },
-      { at: 40, msg: "✍️ Generando coaching personalizado...",                 pct: 74 },
-      { at: 55, msg: "⏳ Casi listo... los CVs extensos toman hasta 60s",      pct: 90 },
-    ];
-    const msgEl = document.getElementById('loading-msg');
-    const barEl = document.getElementById('loading-bar');
-    const startTs = Date.now();
-
-    function tick() {
-      const elapsed = (Date.now() - startTs) / 1000;
-      // Find the latest step whose 'at' time has been reached
-      let cur = steps[0];
-      for (const s of steps) { if (elapsed >= s.at) cur = s; else break; }
-      msgEl.textContent = cur.msg;
-      barEl.style.width = cur.pct + '%';
-      // Keep ticking until server responds (form submit will navigate away)
-      setTimeout(tick, 1000);
-    }
-    tick();
+    const formData = new FormData(this);
+    fetch('/analyze', { method: 'POST', body: formData })
+      .then(r => {
+        const ct = r.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          return r.json().then(data => {
+            if (data.needs_ocr) {
+              showOcrBanner(data.pending_id, data.filename, formData);
+            } else {
+              hideLoading();
+              showInlineError(data.detail || 'Error inesperado.');
+            }
+          });
+        }
+        return r.text().then(html => {
+          document.open(); document.write(html); document.close();
+        });
+      })
+      .catch(err => {
+        hideLoading();
+        btn.querySelector('.btn-text').classList.remove('hidden');
+        btn.querySelector('.btn-loading').classList.add('hidden');
+        btn.disabled = false;
+        showInlineError('Error de conexión: ' + err.message);
+      });
   });
 
   // ── Before/After score ring animation (triggers when section enters viewport) ──

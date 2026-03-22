@@ -55,13 +55,22 @@ def scrape_job_url(url: str) -> str:
 
 def extract_pdf(file_bytes: bytes) -> str:
     import io
-    text = ""
+    from .claude import _sanitize_cv_text
+    text_parts = []
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
+            tables = page.extract_tables()
+            if tables:
+                for table in tables:
+                    for row in table:
+                        if row:
+                            cells = [str(c).strip() for c in row if c and str(c).strip()]
+                            if cells:
+                                text_parts.append("  |  ".join(cells))
             t = page.extract_text()
             if t:
-                text += t + "\n"
-    return text.strip()
+                text_parts.append(t)
+    return _sanitize_cv_text("\n".join(text_parts))
 
 
 def extract_docx(file_bytes: bytes) -> str:

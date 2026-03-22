@@ -157,13 +157,13 @@ a:hover { text-decoration: underline; }
 .hero-title { margin-bottom: 1.25rem; }
 .title-serif {
   font-family: 'Playfair Display', Georgia, serif;
-  font-style: italic; font-weight: 400; font-size: 44px; color: #2563EB; display: block; line-height: 1.15;
+  font-style: italic; font-weight: 400; font-size: 53px; color: #2563EB; display: block; line-height: 1.15;
 }
 .title-sans {
-  font-family: 'Inter', sans-serif; font-weight: 700; font-size: 44px; color: #0F172A; display: block; line-height: 1.15;
+  font-family: 'Inter', sans-serif; font-weight: 700; font-size: 53px; color: #0F172A; display: block; line-height: 1.15;
 }
 .title-action {
-  font-family: 'Inter', sans-serif; font-weight: 400; font-size: 20px; color: #2563EB;
+  font-family: 'Inter', sans-serif; font-weight: 400; font-size: 24px; color: #2563EB;
   display: block; margin-top: 8px; line-height: 1.4;
 }
 .highlight { color: var(--blue); }
