@@ -756,7 +756,7 @@ details[open] .coaching-chevron { transform: rotate(180deg); }
 .credit-badge.credit-admin { background: rgba(124,58,237,0.15); color: #7C3AED; border-color: rgba(124,58,237,0.3); }
 
 /* ─── Alert info ── */
-.alert-info { background: rgba(45,91,227,0.1); border-color: rgba(45,91,227,0.3); color: var(--text2); }
+.alert-info { background: rgba(45,91,227,0.1); border: 1px solid rgba(45,91,227,0.3); color: var(--text2); }
 
 /* ═══════════════════════════════════════════
    TOOLS SECTION
