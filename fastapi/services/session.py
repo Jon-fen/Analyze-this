@@ -369,7 +369,12 @@ def get_admin_users() -> list:
 
 def update_user_plan(user_id: str, plan: str) -> Tuple[bool, str]:
     try:
-        _sb_admin().table("profiles").update({"plan": plan}).eq("id", user_id).execute()
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada — el cambio de plan requiere permisos de administrador"
+        result = _sb_admin().table("profiles").update({"plan": plan}).eq("id", user_id).execute()
+        if not result.data:
+            return False, f"0 rows updated — user_id={user_id} no encontrado en profiles, o la clave service_role no tiene permisos"
         return True, ""
     except Exception as e:
         return False, str(e)
@@ -389,19 +394,27 @@ def reset_user_credits(user_id: str) -> Tuple[bool, str]:
 def admin_assign_code(user_id: str, code: str) -> Tuple[bool, str]:
     """Assign an activation code to a user and update their plan."""
     try:
+        s = get_settings()
+        if not s.supabase_service_key:
+            return False, "SUPABASE_SERVICE_KEY no configurada"
+        code_upper = code.strip().upper()
         sb = _sb_admin()
-        row = sb.table("activation_codes").select("*").eq("code", code.strip().upper()).maybe_single().execute()
-        if not row.data:
-            return False, "Código no encontrado"
+        row = sb.table("activation_codes").select("*").eq("code", code_upper).maybe_single().execute()
+        if not row or not row.data:
+            return False, f"Código '{code_upper}' no encontrado"
+        if not row.data.get("active", True):
+            return False, f"Código '{code_upper}' no está activo"
         plan = row.data.get("grants_plan", "pro_code")
-        sb.table("profiles").update({
+        result = sb.table("profiles").update({
             "plan": plan,
-            "activation_code": code.strip().upper(),
+            "activation_code": code_upper,
             "credits_used_this_month": 0,
         }).eq("id", user_id).execute()
+        if not result.data:
+            return False, f"0 rows updated — user_id={user_id} no encontrado en profiles"
         sb.table("activation_codes").update({
             "uses_count": (row.data.get("uses_count") or 0) + 1,
-        }).eq("code", code.strip().upper()).execute()
+        }).eq("code", code_upper).execute()
         return True, ""
     except Exception as e:
         return False, str(e)
