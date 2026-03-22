@@ -408,17 +408,78 @@ _RL_LIGHT = rl_colors.HexColor("#8B96A0")
 _RL_DARK  = rl_colors.HexColor("#0F1117")
 
 
+def _md_to_story(content_text: str, styles: dict) -> list:
+    """Convert markdown to reportlab story elements, covering all Claude output patterns."""
+    story = []
+    for line in content_text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            story.append(Spacer(1, 5))
+            continue
+        safe = stripped.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # H1/H2: ## or # Título
+        if re.match(r'^#{1,2}\s+', stripped):
+            text = re.sub(r'^#{1,2}\s+', '', safe)
+            story.append(Paragraph(f"<b>{text}</b>", styles["section"]))
+            continue
+
+        # H3: ### Título
+        if re.match(r'^#{3}\s+', stripped):
+            text = re.sub(r'^#{3}\s+', '', safe)
+            story.append(Paragraph(f"<b>{text}</b>", styles["subsection"]))
+            continue
+
+        # Horizontal rule ---
+        if re.match(r'^-{3,}$', stripped):
+            story.append(HRFlowable(width="100%", thickness=0.5,
+                                    color=rl_colors.HexColor("#E5E7EB"), spaceAfter=6))
+            continue
+
+        # Bullet: - item or • item
+        if re.match(r'^[-•]\s+', stripped):
+            text = re.sub(r'^[-•]\s+', '', safe)
+            text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+            story.append(Paragraph(f"• {text}", styles["bullet"]))
+            continue
+
+        # Numbered: 1. item
+        if re.match(r'^\d+\.\s+', stripped):
+            text = re.sub(r'^\d+\.\s+', '', safe)
+            text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+            story.append(Paragraph(f"&nbsp;&nbsp;{text}", styles["body"]))
+            continue
+
+        # Line that is only **bold text** (heading-like)
+        if re.match(r'^\*\*[^*]+\*\*:?$', stripped):
+            text = re.sub(r'\*\*(.+?)\*\*', r'\1', safe).rstrip(':')
+            story.append(Paragraph(f"<b>{text}</b>", styles["bold"]))
+            continue
+
+        # Normal paragraph — inline **bold**
+        safe = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', safe)
+        story.append(Paragraph(safe, styles["body"]))
+
+    return story
+
+
 def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> io.BytesIO:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
         leftMargin=2*cm, rightMargin=2*cm,
         topMargin=1.5*cm, bottomMargin=2*cm)
 
-    s_hdr   = ParagraphStyle("s_hdr",  fontName="Helvetica-Bold", fontSize=9,  textColor=_RL_LIGHT)
-    s_title = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=18, textColor=_RL_NAVY, spaceBefore=6, spaceAfter=14)
-    s_body  = ParagraphStyle("s_body",  fontName="Helvetica", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
-    s_bold  = ParagraphStyle("s_bold",  fontName="Helvetica-Bold", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
-    s_foot  = ParagraphStyle("s_foot",  fontName="Helvetica", fontSize=8, textColor=_RL_LIGHT, alignment=TA_CENTER)
+    s_hdr       = ParagraphStyle("s_hdr",  fontName="Helvetica-Bold", fontSize=9,  textColor=_RL_LIGHT)
+    s_title     = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=18, textColor=_RL_NAVY, spaceBefore=6, spaceAfter=14)
+    s_body      = ParagraphStyle("s_body",  fontName="Helvetica", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
+    s_bold      = ParagraphStyle("s_bold",  fontName="Helvetica-Bold", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
+    s_section   = ParagraphStyle("s_section", fontName="Helvetica-Bold", fontSize=12, textColor=_RL_NAVY, spaceBefore=10, spaceAfter=4)
+    s_subsect   = ParagraphStyle("s_subsect", fontName="Helvetica-Bold", fontSize=10.5, textColor=_RL_DARK, spaceBefore=8, spaceAfter=3)
+    s_bullet    = ParagraphStyle("s_bullet", fontName="Helvetica", fontSize=10.5, textColor=_RL_DARK, leading=14, leftIndent=12, spaceAfter=3)
+    s_foot      = ParagraphStyle("s_foot",  fontName="Helvetica", fontSize=8, textColor=_RL_LIGHT, alignment=TA_CENTER)
+
+    md_styles = {"body": s_body, "bold": s_bold, "section": s_section,
+                 "subsection": s_subsect, "bullet": s_bullet}
 
     story = []
 
@@ -442,21 +503,7 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
     story.append(Paragraph(title, s_title))
     story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_GOLD, spaceAfter=14))
 
-    for line in content_text.split("\n"):
-        stripped = line.strip()
-        if not stripped:
-            story.append(Spacer(1, 5))
-            continue
-        safe = stripped.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        if re.match(r"^\*\*.*\*\*$", stripped):
-            story.append(Paragraph(safe.replace("**", ""), s_bold))
-        elif re.match(r"^\d+\.", stripped):
-            story.append(Paragraph(f"&nbsp;&nbsp;{safe}", s_body))
-        elif stripped.startswith("- ") or stripped.startswith("• "):
-            story.append(Paragraph(f"• {safe[2:]}", s_body))
-        else:
-            safe = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
-            story.append(Paragraph(safe, s_body))
+    story.extend(_md_to_story(content_text, md_styles))
 
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_LIGHT, spaceAfter=6))

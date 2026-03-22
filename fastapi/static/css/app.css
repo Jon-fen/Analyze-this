@@ -523,7 +523,8 @@ a:hover { text-decoration: underline; }
   padding: 1.25rem 1.5rem; margin-bottom: 1.25rem;
   box-shadow: var(--shadow-sm);
 }
-.keywords-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.keywords-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+.kw-section { min-height: unset !important; height: auto !important; overflow: visible !important; }
 .kw-section-header {
   display: flex; align-items: center; gap: 5px;
   font-size: 0.73rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
