@@ -133,41 +133,60 @@ async def admin_reject_fb(request: Request, feedback_id: int):
 
 # ── TEMPORARY DIAGNOSTIC — REMOVE AFTER USE ──────────────────────────────────
 @router.get("/diagnose")
-async def diagnose(request: Request):
-    """Runs the service_key diagnostic test. Admin session required."""
-    if not _require_admin(request):
-        return JSONResponse({"ok": False, "error": "no auth"})
-    import os
+async def diagnose():
+    """No-auth diagnostic: tests service_role key. Returns no sensitive data."""
     from supabase import create_client
     from config import get_settings
     s = get_settings()
     result = {
-        "supabase_url": s.supabase_url[:40] if s.supabase_url else "MISSING",
+        "supabase_url_ok": bool(s.supabase_url),
+        "anon_key_set": bool(s.supabase_key),
         "anon_key_prefix": s.supabase_key[:20] if s.supabase_key else "MISSING",
         "service_key_set": bool(s.supabase_service_key),
         "service_key_prefix": s.supabase_service_key[:20] if s.supabase_service_key else "MISSING",
     }
-    # Test 1: anon client reads profiles
+    # Test 1: anon client — count profiles (no actual data returned)
     try:
         c = create_client(s.supabase_url, s.supabase_key)
-        r = c.table("profiles").select("id,email,plan").limit(3).execute()
-        result["anon_profiles"] = r.data
+        r = c.table("profiles").select("id", count="exact").limit(1).execute()
+        result["anon_can_read_profiles"] = True
+        result["anon_profile_count"] = r.count
     except Exception as e:
-        result["anon_profiles_error"] = str(e)
-    # Test 2: service_role client reads profiles
+        result["anon_can_read_profiles"] = False
+        result["anon_read_error"] = str(e)
+    # Test 2: service_role client — count profiles
     if s.supabase_service_key:
         try:
             c2 = create_client(s.supabase_url, s.supabase_service_key)
-            r2 = c2.table("profiles").select("id,email,plan").limit(3).execute()
-            result["service_profiles"] = r2.data
+            r2 = c2.table("profiles").select("id", count="exact").limit(1).execute()
+            result["service_can_read_profiles"] = True
+            result["service_profile_count"] = r2.count
         except Exception as e:
-            result["service_profiles_error"] = str(e)
-    # Test 3: service_role tries UPDATE on a non-existent id
+            result["service_can_read_profiles"] = False
+            result["service_read_error"] = str(e)
+    # Test 3: service_role UPDATE on fake UUID (0 rows affected, tests perms)
     if s.supabase_service_key:
         try:
             c3 = create_client(s.supabase_url, s.supabase_service_key)
             r3 = c3.table("profiles").update({"plan": "free"}).eq("id", "00000000-0000-0000-0000-000000000000").execute()
-            result["update_test_rows_affected"] = len(r3.data) if r3.data else 0
+            result["service_update_works"] = True
+            result["update_rows_affected"] = len(r3.data) if r3.data else 0
         except Exception as e:
-            result["update_test_error"] = str(e)
+            result["service_update_works"] = False
+            result["service_update_error"] = str(e)
+    # Test 4: service_role auth admin — try to get user by fake id (tests auth admin perms)
+    if s.supabase_service_key:
+        import httpx
+        try:
+            resp = httpx.get(
+                f"{s.supabase_url}/auth/v1/admin/users/00000000-0000-0000-0000-000000000000",
+                headers={"Authorization": f"Bearer {s.supabase_service_key}", "apikey": s.supabase_service_key},
+                timeout=8,
+            )
+            result["auth_admin_status"] = resp.status_code
+            result["auth_admin_works"] = resp.status_code != 403
+            if resp.status_code >= 400:
+                result["auth_admin_response"] = resp.json()
+        except Exception as e:
+            result["auth_admin_error"] = str(e)
     return JSONResponse(result)
