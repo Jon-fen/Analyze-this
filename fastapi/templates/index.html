@@ -49,9 +49,9 @@
       {% endif %}
 
       {% if not user %}
-      <div class="alert alert-info">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#2D5BE3" stroke-width="1.5"/><path d="M8 7v4M8 5h.01" stroke="#2D5BE3" stroke-width="1.5" stroke-linecap="round"/></svg>
-        1 análisis gratuito sin registro. <a href="#" onclick="openAuthModal('register'); return false;" style="color:var(--blue);text-decoration:underline">Crea cuenta</a> para guardar historial y descargar todos los templates.
+      <div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:8px;padding:0.75rem 1rem;font-size:0.875rem;color:#3730A3;display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+        <span>ℹ️</span>
+        <span>1 análisis gratuito sin registro — <a href="#" onclick="openAuthModal('register'); return false;" style="color:#2D5BE3;text-decoration:underline">crea una cuenta gratis</a> para guardar historial y descargar todos los templates.</span>
       </div>
       {% elif user.credits_remaining == 0 %}
       <div class="alert alert-error">
