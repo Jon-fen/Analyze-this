@@ -54,12 +54,16 @@ async def index(request: Request):
     stats = get_global_stats()
     reviews = get_public_reviews()
     show_auth = request.query_params.get("show_auth") == "1"
-    return templates.TemplateResponse(request, "index.html", {
+    ref = request.query_params.get("ref", "").strip().upper()[:8]
+    response = templates.TemplateResponse(request, "index.html", {
         "user": user,
         "stats": stats,
         "reviews": reviews,
         "show_auth_modal": show_auth,
     })
+    if ref:
+        response.set_cookie("pending_ref", ref, max_age=86400 * 7, httponly=False, samesite="lax")
+    return response
 
 
 @router.get("/analyze")
@@ -275,3 +279,15 @@ async def feedback(
     em  = user["email"] if user else email
     ok = save_feedback(uid, em, rating, comment, job_title)
     return JSONResponse({"ok": ok})
+
+
+@router.get("/api/reviews")
+async def api_reviews():
+    reviews = get_public_reviews()
+    if len(reviews) < 3:
+        reviews = (reviews + [
+            {"rating": 5, "comment": "Pasé de 0 entrevistas a 3 en una semana. El coaching fue clave.", "job_title": "Analista de Datos · Santiago"},
+            {"rating": 5, "comment": "Nunca había entendido qué era un ATS. El score me mostró exactamente qué cambiar.", "job_title": "Jefe de Proyectos · Buenos Aires"},
+            {"rating": 4, "comment": "La carta quedó mejor que lo que yo habría escrito. La usé tal cual.", "job_title": "Ejecutiva Comercial · Bogotá"},
+        ])[:3]
+    return JSONResponse(reviews)

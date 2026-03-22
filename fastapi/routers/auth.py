@@ -22,17 +22,18 @@ async def set_session(request: Request):
     except Exception:
         return JSONResponse({"ok": False, "error": "invalid body"}, status_code=400)
 
-    access  = body.get("access_token", "")
-    refresh = body.get("refresh_token", "")
-    user_id = body.get("user_id", "")
-    email   = body.get("email", "")
-    display = body.get("display_name", "")
+    access      = body.get("access_token", "")
+    refresh     = body.get("refresh_token", "")
+    user_id     = body.get("user_id", "")
+    email       = body.get("email", "")
+    display     = body.get("display_name", "")
+    referred_by = body.get("referred_by", "")
 
     if not access:
         return JSONResponse({"ok": False, "error": "missing token"}, status_code=400)
 
     if user_id and email:
-        ensure_profile(user_id, email, display)
+        ensure_profile(user_id, email, display, referred_by)
 
     response = JSONResponse({"ok": True})
     response.set_cookie("sb_access_token",  access,  max_age=COOKIE_MAX_ACCESS,  httponly=True, samesite="lax", secure=True)

@@ -4,6 +4,8 @@ Supabase data layer — auth, credits, history, feedback, admin, codes.
 from __future__ import annotations
 import json
 import re
+import secrets
+import string
 import httpx
 from datetime import datetime, timezone
 from typing import Optional, Tuple
@@ -78,6 +80,11 @@ def _get_profile(sb: Client, user_id: str) -> dict:
         return {}
 
 
+def _generate_ref_code() -> str:
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(8))
+
+
 def _build_user_dict(sb: Client, user, profile: dict) -> dict:
     plan = profile.get("plan", "free")
     used = profile.get("credits_used_this_month", 0)
@@ -113,24 +120,44 @@ def _build_user_dict(sb: Client, user, profile: dict) -> dict:
         "credits_used": used,
         "credits_limit": limit,
         "credits_remaining": remaining,
+        "referral_code": profile.get("referral_code", ""),
+        "referred_by": profile.get("referred_by", ""),
     }
 
 
 # ─── Profile management ────────────────────────────────────────────────────────
 
-def ensure_profile(user_id: str, email: str, display_name: str = "") -> None:
+def ensure_profile(user_id: str, email: str, display_name: str = "", referred_by: str = "") -> None:
     try:
         sb = _sb()
-        existing = sb.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
+        existing = sb.table("profiles").select("id,referral_code").eq("id", user_id).maybe_single().execute()
         if not existing.data:
-            sb.table("profiles").insert({
+            # Generate unique referral code
+            ref_code = _generate_ref_code()
+            for _ in range(5):  # retry up to 5 times on collision
+                check = sb.table("profiles").select("id").eq("referral_code", ref_code).maybe_single().execute()
+                if not check.data:
+                    break
+                ref_code = _generate_ref_code()
+            row = {
                 "id": user_id,
                 "email": email,
                 "display_name": display_name,
                 "plan": "free",
                 "credits_used_this_month": 0,
                 "credits_reset_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
+                "referral_code": ref_code,
+            }
+            if referred_by:
+                row["referred_by"] = referred_by.upper()[:8]
+            sb.table("profiles").insert(row).execute()
+        elif existing.data and not existing.data.get("referral_code"):
+            # Backfill missing referral_code for existing profiles
+            ref_code = _generate_ref_code()
+            try:
+                sb.table("profiles").update({"referral_code": ref_code}).eq("id", user_id).execute()
+            except Exception:
+                pass
     except Exception:
         pass
 

@@ -264,6 +264,9 @@ document.addEventListener('click', e => {
 
 // ── Persist session (called after any auth success) ──────────────────────────
 async function persistSession(session, user) {
+  // Read pending referral from cookie (set by server when ?ref= is in URL)
+  const pendingRef = document.cookie.split('; ').find(r => r.startsWith('pending_ref='))?.split('=')[1]
+    || sessionStorage.getItem('pending_ref') || '';
   await fetch('/auth/set-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -273,17 +276,13 @@ async function persistSession(session, user) {
       user_id:       user?.id || '',
       email:         user?.email || '',
       display_name:  user?.user_metadata?.display_name || user?.user_metadata?.full_name || '',
+      referred_by:   pendingRef,
     }),
   });
-  // Redeem pending referral
-  const pendingRef = sessionStorage.getItem('pending_ref');
   if (pendingRef) {
     sessionStorage.removeItem('pending_ref');
-    await fetch('/referral/redeem', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ ref_code: pendingRef }),
-    });
+    // Expire the pending_ref cookie
+    document.cookie = 'pending_ref=; max-age=0; path=/';
   }
 }
 

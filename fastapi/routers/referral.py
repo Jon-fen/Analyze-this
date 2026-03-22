@@ -26,7 +26,8 @@ async def get_my_referral_link(request: Request):
     user = getattr(request.state, "user", None)
     if not user:
         return JSONResponse({"ok": False, "error": "login_required"})
-    code = _make_referral_code(user["id"])
+    # Use stored referral_code if available, else fall back to deterministic
+    code = user.get("referral_code") or _make_referral_code(user["id"])
     link = f"{RAILWAY_URL}/?ref={code}"
     return JSONResponse({"ok": True, "code": code, "link": link})
 
