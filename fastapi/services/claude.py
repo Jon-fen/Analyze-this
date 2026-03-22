@@ -5,7 +5,7 @@ import json
 import time
 import anthropic
 
-MAX_CV_CHARS = 40_000
+MAX_CV_CHARS = 25_000
 MAX_CV_CHARS_CAREER = 80_000
 
 
@@ -120,7 +120,7 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
         for attempt in range(2):
             msg = client.messages.create(
                 model=model_id,
-                max_tokens=5000,
+                max_tokens=3500,
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -142,8 +142,8 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
     result["_was_truncated"] = was_truncated
     result["_model_used"] = "haiku"
 
-    # Paso 2: Si score < 60, Opus reanaliza (~$0.15-0.20)
-    if result.get("score_match", 100) < 60:
+    # Paso 2: Si score < 45, Opus reanaliza (~$0.15-0.20)
+    if result.get("score_match", 100) < 45:
         result = call_model("claude-opus-4-5-20251101")
         result["_was_truncated"] = was_truncated
         result["_model_used"] = "opus"
