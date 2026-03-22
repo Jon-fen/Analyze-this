@@ -225,14 +225,17 @@
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loading-box">
       <div class="loading-spinner">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="24" r="20" stroke="rgba(255,255,255,0.2)" stroke-width="4"/>
-          <path d="M24 4a20 20 0 0 1 20 20" stroke="#6C8EF5" stroke-width="4" stroke-linecap="round"/>
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+          <circle cx="26" cy="26" r="22" stroke="rgba(108,142,245,0.2)" stroke-width="4"/>
+          <path d="M26 4a22 22 0 0 1 22 22" stroke="#6C8EF5" stroke-width="4" stroke-linecap="round"/>
         </svg>
       </div>
       <p class="loading-title">Analizando tu CV con IA</p>
-      <p class="loading-msg" id="loading-msg">Leyendo tu currículum…</p>
-      <div class="loading-bar-track"><div class="loading-bar" id="loading-bar"></div></div>
+      <p class="loading-msg" id="loading-msg">📄 Extrayendo texto del CV...</p>
+      <div class="loading-bar-track">
+        <div class="loading-bar" id="loading-bar" style="width:5%"></div>
+      </div>
+      <p class="loading-fact">💡 El 75% de los CVs son rechazados por ATS antes de que un humano los vea.</p>
     </div>
   </div>
 </section>
@@ -468,35 +471,35 @@
     btn.querySelector('.btn-loading').classList.remove('hidden');
     btn.disabled = true;
 
-    // Show animated loading overlay
+    // Show loading overlay and hide form
+    document.getElementById('analyze-form-card').style.display = 'none';
     const overlay = document.getElementById('loading-overlay');
     overlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
+    // Time-based steps (seconds from submit)
     const steps = [
-      { msg: "Leyendo tu currículum…",            pct: 8  },
-      { msg: "Extrayendo experiencia y skills…",  pct: 18 },
-      { msg: "Analizando la oferta de trabajo…",  pct: 30 },
-      { msg: "Comparando keywords del ATS…",      pct: 44 },
-      { msg: "Calculando score de compatibilidad…",pct: 58 },
-      { msg: "Optimizando secciones del CV…",     pct: 70 },
-      { msg: "Generando plan de acción…",          pct: 82 },
-      { msg: "Preparando tu resultado…",           pct: 92 },
-      { msg: "¡Casi listo!",                       pct: 97 },
+      { at:  0, msg: "📄 Extrayendo texto del CV...",                          pct:  8 },
+      { at: 15, msg: "🔍 Analizando la oferta laboral...",                     pct: 28 },
+      { at: 25, msg: "🤖 Claude está evaluando compatibilidad ATS...",         pct: 52 },
+      { at: 40, msg: "✍️ Generando coaching personalizado...",                 pct: 74 },
+      { at: 55, msg: "⏳ Casi listo... los CVs extensos toman hasta 60s",      pct: 90 },
     ];
     const msgEl = document.getElementById('loading-msg');
     const barEl = document.getElementById('loading-bar');
-    let i = 0;
-    function nextStep() {
-      if (i < steps.length) {
-        msgEl.textContent = steps[i].msg;
-        barEl.style.width = steps[i].pct + '%';
-        i++;
-        setTimeout(nextStep, 1800 + Math.random() * 600);
-      }
+    const startTs = Date.now();
+
+    function tick() {
+      const elapsed = (Date.now() - startTs) / 1000;
+      // Find the latest step whose 'at' time has been reached
+      let cur = steps[0];
+      for (const s of steps) { if (elapsed >= s.at) cur = s; else break; }
+      msgEl.textContent = cur.msg;
+      barEl.style.width = cur.pct + '%';
+      // Keep ticking until server responds (form submit will navigate away)
+      setTimeout(tick, 1000);
     }
-    nextStep();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    tick();
   });
 </script>
 {% endblock %}
