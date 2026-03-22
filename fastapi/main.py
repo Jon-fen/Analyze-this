@@ -7,6 +7,7 @@ from config import get_settings
 from deps import templates                        # shared instance
 from services.session import validate_session
 from routers import analyze, auth, tools, history, admin, email_router, referral
+from version import VERSION, RELEASE_DATE
 
 
 @asynccontextmanager
@@ -17,7 +18,8 @@ async def lifespan(app: FastAPI):
     s = get_settings()
     templates.env.globals["SUPABASE_URL"] = s.supabase_url
     templates.env.globals["SUPABASE_KEY"] = s.supabase_key
-    templates.env.globals["APP_VERSION"] = "2.0.0"
+    templates.env.globals["APP_VERSION"] = VERSION
+    templates.env.globals["RELEASE_DATE"] = RELEASE_DATE
     yield
 
 
