@@ -35,7 +35,10 @@
 
   <!-- Users -->
   <div class="breakdown-card">
-    <h3 class="card-title">Gestión de usuarios <span style="font-weight:400;color:var(--text3)">(últimos 20)</span></h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+      <h3 class="card-title" style="margin:0">Gestión de usuarios <span style="font-weight:400;color:var(--text3)">(últimos 20)</span></h3>
+      <button onclick="refreshUsers()" class="btn btn-secondary btn-sm" id="refreshBtn">↻ Actualizar</button>
+    </div>
     <div id="admin-msg" style="display:none;font-size:0.82rem;padding:0.5rem 0.75rem;border-radius:6px;margin-bottom:0.75rem"></div>
     {% if users %}
     <div class="admin-table">
@@ -49,6 +52,7 @@
           <span style="font-size:0.72rem;color:var(--text3)">
             {{ used }}/{% if plan == 'admin' %}∞{% else %}{{ limit }}{% endif %} análisis
             {% if u.activation_code %} · código: <code>{{ u.activation_code }}</code>{% endif %}
+            {% if u.referred_by %} · ref: <code>{{ u.referred_by }}</code>{% endif %}
           </span>
         </div>
 
@@ -289,6 +293,17 @@ window.approveFb = async function(fbId, approve) {
   const url = `/admin/feedback/${fbId}/${approve ? 'approve' : 'reject'}`;
   const data = await fetch(url, { method: 'POST' }).then(r => r.json());
   if (data.ok) window.location.reload(); else showAdminMsg('Error', false);
+};
+
+window.refreshUsers = async function() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const data = await fetch('/admin/users/list').then(r => r.json());
+    if (data.ok) window.location.reload();
+    else showAdminMsg('Error al refrescar: ' + data.error, false);
+  } catch(e) { showAdminMsg('Error de red', false); }
+  btn.disabled = false; btn.textContent = '↻ Actualizar';
 };
 
 window.fixOrphan = async function() {

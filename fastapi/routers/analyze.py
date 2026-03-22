@@ -180,6 +180,7 @@ async def analyze(
             cv_data.get("titulo_profesional", ""),
             score,
             ats_ok,
+            cv_filename=cv_filename,
         )
         # Optionally save CV copy
         if save_cv_copy_bool and history_id:

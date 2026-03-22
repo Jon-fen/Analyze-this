@@ -148,20 +148,23 @@ def consume_credit(user_id: str, current_used: int) -> None:
 
 # ─── History ──────────────────────────────────────────────────────────────────
 
-def save_history(user_id: str, job_title: str, score: int, ats_ok: bool) -> Optional[int]:
+def save_history(user_id: str, job_title: str, score: int, ats_ok: bool, cv_filename: str = "") -> Optional[int]:
     try:
-        res = _sb().table("history").insert({
+        row = {
             "user_id": user_id,
             "job_title": (job_title or "")[:120],
             "score_match": score,
             "ats_compatible": ats_ok,
             "outcome": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
+        }
+        if cv_filename:
+            row["cv_filename"] = cv_filename[:200]
+        res = _sb().table("history").insert(row).execute()
         if res.data:
             return res.data[0].get("id")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[save_history ERROR] user={user_id} error={e}")
     return None
 
 
@@ -201,15 +204,16 @@ def get_history(user_id: str) -> list:
 
 def save_cv_copy(user_id: str, history_id, cv_original: str, cv_data: dict) -> bool:
     try:
-        _sb().table("cv_storage").insert({
+        result = _sb().table("cv_storage").insert({
             "user_id": user_id,
             "history_id": history_id,
             "cv_original_snippet": cv_original[:5000],
             "cv_generated": json.dumps(cv_data, ensure_ascii=False)[:20000],
             "created_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
-        return True
-    except Exception:
+        return bool(result.data)
+    except Exception as e:
+        print(f"[save_cv_copy ERROR] user={user_id} history={history_id} error={e}")
         return False
 
 

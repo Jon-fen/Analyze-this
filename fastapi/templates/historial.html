@@ -43,6 +43,7 @@
               {{ item.created_at[:10] if item.created_at else "" }}
               · {% if item.ats_compatible %}<span style="color:var(--green)">ATS ✓</span>
                 {% else %}<span style="color:var(--red)">ATS ✗</span>{% endif %}
+              {% if item.cv_filename %} · 📄 {{ item.cv_filename }}{% endif %}
               {% if item.outcome %}
               · <span class="history-outcome-badge">{{ {
                   'got_interview': '🎤 Entrevista',

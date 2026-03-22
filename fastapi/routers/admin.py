@@ -110,6 +110,14 @@ async def delete_user(request: Request, user_id: str):
     return JSONResponse({"ok": ok, "error": err})
 
 
+@router.get("/users/list")
+async def list_users_api(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"ok": False, "error": "no auth"})
+    users = get_admin_users()
+    return JSONResponse({"ok": True, "users": users})
+
+
 @router.post("/user/fix-orphan")
 async def fix_orphan_user(request: Request, email: str = Form(...)):
     """Delete orphan Auth user (no profile) so email can re-register."""
