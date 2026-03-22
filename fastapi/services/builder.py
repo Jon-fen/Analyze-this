@@ -335,16 +335,7 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         return HRFlowable(width="100%", thickness=thickness, color=color, spaceAfter=4)
 
     story = []
-    # Logo in top-right corner
-    if os.path.exists(_LOGO_PATH):
-        s_logo_label = sty("ll", fontSize=6.5, textColor=C_DIS, alignment=TA_RIGHT)
-        logo_img = RLImage(_LOGO_PATH, width=1.4*cm, height=0.93*cm)
-        name_para = Paragraph(_x(cv.get("nombre", "")), s_name)
-        logo_row = Table([[name_para, logo_img]], colWidths=[14.5*cm, 1.5*cm])
-        logo_row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (1, 0), (1, 0), "RIGHT")]))
-        story.append(logo_row)
-    else:
-        story.append(Paragraph(_x(cv.get("nombre", "")), s_name))
+    story.append(Paragraph(_x(cv.get("nombre", "")), s_name))
     if cv.get("titulo_profesional"):
         story.append(Paragraph(_x(cv["titulo_profesional"]), s_title))
     parts = [_x(x) for x in [cv.get("email"), cv.get("telefono"), cv.get("ubicacion"), cv.get("linkedin")] if x]
@@ -398,9 +389,6 @@ def build_cv_pdf(cv: dict, template: str = "Clásico") -> io.BytesIO:
         for cert in certs:
             story.append(Paragraph(f"• {_x(cert)}", s_bullet))
 
-    story.append(Spacer(1, 12))
-    story.append(hr(C_DIS, 0.4))
-    story.append(Paragraph(DISCLAIMER_TEXT, s_disc))
     doc.build(story)
     buf.seek(0)
     return buf
