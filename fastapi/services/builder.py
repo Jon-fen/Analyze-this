@@ -282,17 +282,23 @@ def build_minimalista(cv, fn="Calibri", fs=11):
 
 
 DOCX_BUILDERS = {
-    "Clásico": build_clasico,
-    "Moderno": build_moderno,
+    "Clásico":   build_clasico,
     "Ejecutivo": build_ejecutivo,
-    "Minimalista": build_minimalista,
 }
 
 TEMPLATES_META = {
-    "Clásico":     {"icon": "📋", "color": "#2E75B6", "ideal": "Finanzas · Legal · Gobierno · Roles senior"},
-    "Moderno":     {"icon": "✨", "color": "#178ACA", "ideal": "Tech · Startups · Marketing · Diseño"},
-    "Ejecutivo":   {"icon": "🏛️", "color": "#1B2A4A", "ideal": "Dirección · C-level · Consultoría · Banca"},
-    "Minimalista": {"icon": "⬜", "color": "#444444", "ideal": "Máxima compatibilidad ATS · Cualquier sector"},
+    "Clásico": {
+        "icon": "📋",
+        "color": "#2E75B6",
+        "desc": "Una columna, máxima compatibilidad ATS. Funciona en todos los sistemas.",
+        "ideal": "Cualquier industria · Máxima compatibilidad",
+    },
+    "Ejecutivo": {
+        "icon": "🏛️",
+        "color": "#1B2A4A",
+        "desc": "Tipografía con autoridad, ideal para roles senior y C-level.",
+        "ideal": "Dirección · Consultoría · Finanzas · Legal",
+    },
 }
 
 

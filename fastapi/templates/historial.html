@@ -13,7 +13,31 @@
 
   <div class="candidate-info" style="margin-bottom:1.5rem">
     <h1 class="candidate-name" style="font-size:1.7rem">Mi historial</h1>
-    <p class="candidate-title">Tus últimos 10 análisis · {{ history | length }} registro{% if history | length != 1 %}s{% endif %}</p>
+    <p class="candidate-title">Tus últimos {{ history | length }} análisis · {{ history | length }} registro{% if history | length != 1 %}s{% endif %}</p>
+
+    {% if user and user.referral_code %}
+    <div class="referral-box">
+      <p class="referral-label">Tu link de referido</p>
+      <div class="referral-link-row">
+        <input type="text" readonly id="refLinkInput"
+               value="https://analyze-this-production.up.railway.app/?ref={{ user.referral_code }}"
+               class="referral-input">
+        <button type="button" onclick="copyRefLink()" class="btn-copy-ref">Copiar</button>
+      </div>
+      <p class="referral-hint">Compártelo — quienes se registren con tu link quedan vinculados a ti.</p>
+    </div>
+    <script>
+    function copyRefLink() {
+      const input = document.getElementById('refLinkInput');
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = event.target;
+        btn.textContent = '✅ Copiado';
+        btn.style.background = '#16A34A';
+        setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = ''; }, 2500);
+      });
+    }
+    </script>
+    {% endif %}
     <div class="history-clarity-note">
       ℹ️ <strong>¿Qué se guarda aquí?</strong> El título del puesto, fecha, score ATS y si fue compatible.
       El texto de tu CV y la oferta <strong>no</strong> se almacenan, a menos que hayas activado "Guardar copia" al analizar.

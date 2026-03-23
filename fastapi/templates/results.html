@@ -153,42 +153,33 @@
   <!-- ── Downloads ── -->
   <div class="download-section">
     <h3 class="section-title-sm">Descarga tu CV optimizado</h3>
-    <p class="section-sub-sm">4 templates listos para enviar · DOCX editable + PDF</p>
+    <p class="download-hint">Ambos templates están optimizados para ATS — la diferencia es el estilo visual según el tipo de rol.</p>
 
-    <div class="templates-grid">
+    <div class="template-grid">
       {% for tpl_name, meta in templates_meta.items() %}
-      <div class="template-card">
-        <div class="template-header" style="border-top-color: {{ meta.color }}">
+      <div class="template-card-dl">
+        <div class="template-header-dl">
           <span class="template-icon">{{ meta.icon }}</span>
-          <div class="template-info">
-            <span class="template-name">{{ tpl_name }}</span>
-            <span class="template-ideal">{{ meta.ideal }}</span>
+          <div>
+            <div class="template-name">{{ tpl_name }}</div>
+            <div class="template-ideal">{{ meta.ideal }}</div>
           </div>
         </div>
-        <div class="template-actions">
+        <p class="template-desc">{{ meta.desc }}</p>
+        <div class="template-actions-dl">
           {% if is_guest %}
-            {# Guests: only Clásico PDF, rest locked #}
             {% if tpl_name == "Clásico" %}
               <a href="/download/{{ result_id }}?fmt=pdf&template={{ tpl_name | urlencode }}"
-                 class="btn btn-download btn-pdf" download>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                PDF
-              </a>
+                 class="btn-download" download>⬇ PDF</a>
             {% endif %}
-            <button class="btn btn-download btn-locked" onclick="openAuthModal('register')" title="Crea una cuenta para acceder">
+            <button class="btn-download btn-download-locked" onclick="openAuthModal('register')">
               🔒 {{ "DOCX" if tpl_name == "Clásico" else "DOCX + PDF" }}
             </button>
           {% else %}
             <a href="/download/{{ result_id }}?fmt=docx&template={{ tpl_name | urlencode }}"
-               class="btn btn-download btn-docx" download>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              DOCX
-            </a>
+               class="btn-download" download>⬇ DOCX</a>
             <a href="/download/{{ result_id }}?fmt=pdf&template={{ tpl_name | urlencode }}"
-               class="btn btn-download btn-pdf" download>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v6.5M4 6.5l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              PDF
-            </a>
+               class="btn-download btn-download-pdf" download>⬇ PDF</a>
           {% endif %}
         </div>
       </div>

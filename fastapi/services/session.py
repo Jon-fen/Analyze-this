@@ -187,11 +187,14 @@ def save_history(user_id: str, job_title: str, score: int, ats_ok: bool, cv_file
         }
         if cv_filename:
             row["cv_filename"] = cv_filename[:200]
-        res = _sb().table("history").insert(row).execute()
+        res = _sb_admin().table("history").insert(row).execute()
         if res.data:
-            return res.data[0].get("id")
+            rid = res.data[0].get("id")
+            print(f"[save_history] OK id={rid}", flush=True)
+            return rid
+        print(f"[save_history] No data returned", flush=True)
     except Exception as e:
-        print(f"[save_history ERROR] user={user_id} error={e}")
+        print(f"[save_history ERROR] user={user_id} error={e}", flush=True)
     return None
 
 
@@ -206,16 +209,17 @@ def save_guest_analysis() -> None:
 
 def update_outcome(history_id: int, outcome: str) -> bool:
     try:
-        _sb().table("history").update({"outcome": outcome}).eq("id", history_id).execute()
+        _sb_admin().table("history").update({"outcome": outcome}).eq("id", history_id).execute()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"[update_outcome ERROR] {e}", flush=True)
         return False
 
 
 def get_history(user_id: str) -> list:
     try:
         res = (
-            _sb().table("history")
+            _sb_admin().table("history")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
@@ -232,16 +236,18 @@ def get_history(user_id: str) -> list:
 
 def save_cv_copy(user_id: str, history_id, cv_original: str, cv_data: dict) -> bool:
     try:
-        result = _sb().table("cv_storage").insert({
+        result = _sb_admin().table("cv_storage").insert({
             "user_id": user_id,
             "history_id": history_id,
             "cv_original_snippet": cv_original[:5000],
             "cv_generated": json.dumps(cv_data, ensure_ascii=False)[:20000],
             "created_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
-        return bool(result.data)
+        ok = bool(result.data)
+        print(f"[save_cv_copy] ok={ok}", flush=True)
+        return ok
     except Exception as e:
-        print(f"[save_cv_copy ERROR] user={user_id} history={history_id} error={e}")
+        print(f"[save_cv_copy ERROR] user={user_id} history={history_id} error={e}", flush=True)
         return False
 
 

@@ -703,6 +703,41 @@ details[open] .coaching-chevron { transform: rotate(180deg); }
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
 }
 
+/* New 2-template grid */
+.download-hint { font-size: 13px; color: #6B7280; margin-bottom: 16px; }
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.template-card-dl { border: 0.5px solid #E5E7EB; border-radius: 12px; padding: 16px; background: white; }
+.template-header-dl { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.template-desc { font-size: 12px; color: #6B7280; line-height: 1.5; margin-bottom: 12px; }
+.template-actions-dl { display: flex; gap: 8px; }
+.btn-download {
+  flex: 1; text-align: center; padding: 8px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; text-decoration: none;
+  background: #1E3A5F; color: white; border: none; cursor: pointer;
+}
+.btn-download-pdf { background: white; color: #1E3A5F; border: 1px solid #1E3A5F; }
+.btn-download:hover { opacity: 0.88; text-decoration: none; }
+.btn-download-locked { background: #F3F4F6; color: #9CA3AF; border: 1px solid #E5E7EB; cursor: pointer; }
+@media (max-width: 600px) { .template-grid { grid-template-columns: 1fr; } }
+
+/* Referral box */
+.referral-box {
+  background: #F0F9FF; border: 0.5px solid #BAE6FD;
+  border-radius: 10px; padding: 14px 16px; margin: 12px 0;
+}
+.referral-label { font-size: 12px; font-weight: 600; color: #0369A1; margin-bottom: 8px; }
+.referral-link-row { display: flex; gap: 8px; }
+.referral-input {
+  flex: 1; padding: 7px 10px; border: 0.5px solid #BAE6FD;
+  border-radius: 7px; font-size: 12px; color: #374151; background: white;
+}
+.btn-copy-ref {
+  padding: 7px 14px; background: #0369A1; color: white;
+  border: none; border-radius: 7px; font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+}
+.referral-hint { font-size: 11px; color: #6B7280; margin-top: 6px; }
+
 /* Register CTA */
 .register-cta {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
