@@ -24,24 +24,71 @@ def _sanitize_cv_text(text: str) -> str:
     # Llaves {} → paréntesis para evitar que rompan el JSON de respuesta
     # Ej: {P}edagogical → (P)edagogical
     text = text.replace("{", "(").replace("}", ")")
+
+    # Join URLs/data split across lines by two-column PDF layout.
+    # Pattern: line ending with "-" followed by a line starting with digits
+    # e.g. "linkedin.com/in/yasmina-contreras-soto-\n13709035"
+    lines = text.split('\n')
+    joined = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        if (line.endswith('-')
+                and i + 1 < len(lines)
+                and lines[i + 1].strip()
+                and lines[i + 1].strip()[0].isdigit()):
+            joined.append(line + lines[i + 1].strip())
+            i += 2
+            continue
+        joined.append(line)
+        i += 1
+    text = '\n'.join(joined)
+
     text = re.sub(r'\n{4,}', '\n\n\n', text)
     lines = [re.sub(r'  +', ' ', l).strip() for l in text.split('\n')]
     return '\n'.join(lines).strip()
 
 
+def _fix_newlines_in_strings(json_str: str) -> str:
+    """Replace bare newlines inside JSON string values with a space."""
+    result = []
+    in_string = False
+    i = 0
+    while i < len(json_str):
+        ch = json_str[i]
+        if ch == '\\' and i + 1 < len(json_str):
+            result.append(ch)
+            result.append(json_str[i + 1])
+            i += 2
+            continue
+        if ch == '"':
+            in_string = not in_string
+        if in_string and ch == '\n':
+            result.append(' ')
+        elif in_string and ch == '\r':
+            pass  # drop CR inside strings
+        else:
+            result.append(ch)
+        i += 1
+    return ''.join(result)
+
+
 def _clean_claude_json(raw: str) -> str:
     """
-    Sanitize typographic chars that Claude reproduces from CV text inside JSON strings.
-    These are valid Unicode but can appear unescaped in ways that break json.loads.
+    Sanitize the raw Claude response before json.loads.
+    Handles typographic chars reproduced from CV text and bare newlines
+    inside JSON string values (caused by two-column PDF layouts).
     """
     # Typographic single quotes → straight apostrophe
     raw = raw.replace("\u2018", "'").replace("\u2019", "'")
-    # Typographic double quotes → escaped double quote for JSON safety
-    raw = raw.replace("\u201c", '\\"').replace("\u201d", '\\"')
+    # Typographic double quotes → straight double quote
+    raw = raw.replace("\u201c", '"').replace("\u201d", '"')
     # Em/en dash → hyphen
     raw = raw.replace("\u2013", "-").replace("\u2014", "-")
     # Prime marks
     raw = raw.replace("\u2032", "'").replace("\u2033", '"')
+    # Fix bare newlines inside JSON strings (the main cause for Yasmina's CV)
+    raw = _fix_newlines_in_strings(raw)
     return raw
 
 
@@ -52,7 +99,7 @@ def _parse_claude_response(raw: str) -> dict:
     elif "```" in raw:
         raw = raw.split("```")[1].split("```")[0].strip()
 
-    # Sanitize typographic characters in Claude's response before any parse attempt
+    # Sanitize typographic chars and bare newlines inside JSON strings
     raw = _clean_claude_json(raw)
 
     import sys
@@ -61,8 +108,9 @@ def _parse_claude_response(raw: str) -> dict:
     # Attempt 1: direct parse
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as e:
+        print(f"[DEBUG parse] attempt 1 failed: pos={e.pos} msg={e.msg}", file=sys.stderr, flush=True)
+        print(f"[DEBUG parse] context: {repr(raw[max(0,e.pos-40):e.pos+40])}", file=sys.stderr, flush=True)
 
     # Attempt 2: brace-balanced extraction
     try:
