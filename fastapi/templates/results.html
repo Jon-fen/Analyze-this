@@ -18,6 +18,11 @@
       ℹ️ CV muy extenso — se analizaron las páginas más recientes. Activa "Cambio de carrera" para procesar el documento completo.
     </div>
     {% endif %}
+    {% if json_truncated %}
+    <div class="warn-banner">
+      ⚠️ CV muy extenso — el análisis se completó parcialmente. Para un resultado más completo, pega solo la experiencia reciente y educación en el campo de texto.
+    </div>
+    {% endif %}
   </div>
 
   <!-- ── Candidate header ── -->

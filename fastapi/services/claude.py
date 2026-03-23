@@ -131,23 +131,44 @@ def _parse_claude_response(raw: str) -> dict:
     except (ValueError, json.JSONDecodeError):
         pass
 
-    # Attempt 3: truncate to last complete field
+    # Attempt 3: walk the raw string and truncate at last complete root-level field
     try:
-        truncated = raw.strip()
-        truncated = re.sub(r',\s*"[^"]*$', '', truncated)
-        truncated = re.sub(r',\s*$', '', truncated)
-        if not truncated.endswith('}'):
-            truncated += '}'
-        return json.loads(truncated)
-    except json.JSONDecodeError:
+        t = raw.strip()
+        depth = 0
+        in_string = False
+        last_safe_pos = 0
+        i = 0
+        while i < len(t):
+            ch = t[i]
+            if ch == '\\' and in_string:
+                i += 2
+                continue
+            if ch == '"':
+                in_string = not in_string
+            if not in_string:
+                if ch in '{[':
+                    depth += 1
+                elif ch in '}]':
+                    depth -= 1
+                elif ch == ',' and depth == 1:
+                    last_safe_pos = i
+            i += 1
+
+        if last_safe_pos > 0:
+            candidate = t[:last_safe_pos].rstrip().rstrip(',') + '\n}'
+            result = json.loads(candidate)
+            result['_json_truncated'] = True
+            return result
+    except (json.JSONDecodeError, Exception):
         pass
 
     raise ValueError(
-        "El CV contiene caracteres especiales que dificultaron el análisis. "
-        "Intenta pegar el texto directamente en el campo de texto."
+        "El CV es muy extenso para analizarlo completo. "
+        "Intenta pegar solo la experiencia reciente y educación, "
+        "o activa 'Cambio de carrera' para un análisis más profundo."
     )
 
-MAX_CV_CHARS = 25_000
+MAX_CV_CHARS = 15_000
 MAX_CV_CHARS_CAREER = 80_000
 
 
@@ -277,7 +298,7 @@ Responde ÚNICAMENTE con JSON válido, sin backticks:
         for attempt in range(2):
             msg = client.messages.create(
                 model=model_id,
-                max_tokens=3500,
+                max_tokens=8000,
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
