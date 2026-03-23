@@ -87,6 +87,9 @@ def _clean_claude_json(raw: str) -> str:
     raw = raw.replace("\u2013", "-").replace("\u2014", "-")
     # Prime marks
     raw = raw.replace("\u2032", "'").replace("\u2033", '"')
+    # \' is not a valid JSON escape — replace with plain apostrophe
+    # (caused by a now-removed prompt instruction that told Claude to escape apostrophes)
+    raw = raw.replace("\\'", "'")
     # Fix bare newlines inside JSON strings (the main cause for Yasmina's CV)
     raw = _fix_newlines_in_strings(raw)
     return raw
@@ -221,10 +224,9 @@ INSTRUCCIONES:
    Adapta el formato y densidad de keywords según ese ATS inferido
 6. Evalúa compatibilidad ATS: sin tablas ni columnas que confundan parsers
 
-IMPORTANTE — ESCAPE JSON: El texto del CV puede contener apostrofes posesivos,
-comillas y símbolos especiales. Al escribir el JSON de respuesta, escápalos
-correctamente: apostrofe dentro de string → \\'  , comilla dentro de string → \\".
-No uses comillas sin escapar dentro de los valores JSON.
+IMPORTANTE — JSON válido: Responde SOLO con el objeto JSON, sin texto adicional.
+Los apostrofes simples (') no necesitan escape en JSON. Solo escapa comillas dobles
+dentro de strings: usa \\" si un valor contiene comillas dobles literales.
 
 CV ORIGINAL:
 {cv_text}
