@@ -129,12 +129,12 @@ def _build_user_dict(sb: Client, user, profile: dict) -> dict:
 
 def ensure_profile(user_id: str, email: str, display_name: str = "", referred_by: str = "") -> None:
     try:
-        sb = _sb()
+        sb = _sb_admin()
         existing = sb.table("profiles").select("id,referral_code").eq("id", user_id).maybe_single().execute()
         if not existing.data:
             # Generate unique referral code
             ref_code = _generate_ref_code()
-            for _ in range(5):  # retry up to 5 times on collision
+            for _ in range(5):
                 check = sb.table("profiles").select("id").eq("referral_code", ref_code).maybe_single().execute()
                 if not check.data:
                     break
@@ -151,15 +151,31 @@ def ensure_profile(user_id: str, email: str, display_name: str = "", referred_by
             if referred_by:
                 row["referred_by"] = referred_by.upper()[:8]
             sb.table("profiles").insert(row).execute()
+            print(f"[ensure_profile] created {email} ref_code={ref_code}", flush=True)
+
+            # Give +1 analysis to the referral code owner
+            if referred_by:
+                try:
+                    owner = sb.table("profiles")\
+                        .select("id,credits_used_this_month")\
+                        .eq("referral_code", referred_by.upper()[:8])\
+                        .maybe_single().execute()
+                    if owner.data:
+                        current = owner.data.get("credits_used_this_month", 0)
+                        sb.table("profiles").update({
+                            "credits_used_this_month": max(0, current - 1)
+                        }).eq("referral_code", referred_by.upper()[:8]).execute()
+                        print(f"[referral] +1 crédito para owner de {referred_by}", flush=True)
+                except Exception as e:
+                    print(f"[referral ERROR] {e}", flush=True)
         elif existing.data and not existing.data.get("referral_code"):
-            # Backfill missing referral_code for existing profiles
             ref_code = _generate_ref_code()
             try:
                 sb.table("profiles").update({"referral_code": ref_code}).eq("id", user_id).execute()
             except Exception:
                 pass
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[ensure_profile ERROR] {e}", flush=True)
 
 
 # ─── Credits ──────────────────────────────────────────────────────────────────
