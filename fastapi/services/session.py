@@ -219,11 +219,12 @@ def get_history(user_id: str) -> list:
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
-            .limit(10)
+            .limit(20)
             .execute()
         )
         return res.data or []
-    except Exception:
+    except Exception as e:
+        print(f"[get_history ERROR] {e}", flush=True)
         return []
 
 

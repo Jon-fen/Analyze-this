@@ -72,6 +72,16 @@ a:hover { text-decoration: underline; }
 }
 .nav-link:hover { color: var(--text); text-decoration: none; }
 
+/* Lang selector */
+.lang-selector { display: flex; gap: 3px; align-items: center; }
+.lang-btn {
+  background: none; border: 0.5px solid #E5E7EB; border-radius: 6px;
+  padding: 3px 7px; font-size: 11px; font-weight: 500; color: #6B7280;
+  cursor: pointer; transition: all 0.15s;
+}
+.lang-btn:hover { background: #F9FAFB; color: #111827; }
+.lang-btn.active { background: #2563EB; color: #fff; border-color: #2563EB; }
+
 /* ─── Beta pill ──────────────────────────────────────────────────────────────── */
 .beta-pill {
   font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
@@ -158,8 +168,22 @@ a:hover { text-decoration: underline; }
 }
 .ats-explainer strong { color: #374151; font-weight: 600; }
 
+/* Hero action line */
+.hero-action {
+  font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 400;
+  color: #374151; line-height: 1.5; margin: 10px 0 16px; max-width: 480px;
+}
+
+/* 3 key points below hero title */
+.hero-three-points { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 20px; }
+.point { display: flex; align-items: flex-start; gap: 12px; }
+.point-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+.point-text { display: flex; flex-direction: column; gap: 2px; }
+.point-text strong { font-size: 14px; font-weight: 600; color: #0F172A; }
+.point-text span { font-size: 12px; color: #6B7280; line-height: 1.5; }
+
 /* Hero title — dual typography */
-.hero-title { margin-bottom: 1.25rem; }
+.hero-title { margin-bottom: 0.5rem; }
 .title-serif {
   font-family: 'Playfair Display', Georgia, serif;
   font-style: italic; font-weight: 400; font-size: 53px; color: #2563EB; display: block; line-height: 1.15;

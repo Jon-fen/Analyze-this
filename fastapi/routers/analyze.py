@@ -210,9 +210,13 @@ async def analyze(
             ats_ok,
             cv_filename=cv_filename,
         )
+        print(f"[ANALYZE] history_id={history_id} user={user['id']}", flush=True)
         # Optionally save CV copy
         if save_cv_copy_bool and history_id:
-            save_cv_copy(user["id"], history_id, cv_text, cv_data)
+            ok = save_cv_copy(user["id"], history_id, cv_text, cv_data)
+            print(f"[ANALYZE] save_cv_copy ok={ok}", flush=True)
+        elif save_cv_copy_bool and not history_id:
+            print(f"[ANALYZE] save_cv_copy SKIPPED — history_id is None", flush=True)
         if user.get("plan") != "admin":
             consume_credit(user["id"], user["credits_used"])
     else:
