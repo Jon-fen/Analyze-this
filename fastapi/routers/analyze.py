@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse,
 
 from config import get_settings
 from deps import templates
-from services.claude import optimize_cv
+from services.claude import optimize_cv, _sanitize_cv_text
 from services.extractor import extract_pdf, extract_docx, scrape_job_url, is_valid_url
 from services.pdf_ocr import is_scanned_pdf, extract_pdf_with_ocr
 from services.builder import DOCX_BUILDERS, build_cv_pdf, build_analysis_pdf, TEMPLATES_META
@@ -156,7 +156,7 @@ async def analyze(
         except Exception as e:
             return _err(f"Error al leer el archivo: {e}")
     elif cv_text_raw.strip():
-        cv_text = cv_text_raw.strip()
+        cv_text = _sanitize_cv_text(cv_text_raw.strip())
 
     if not cv_text:
         return _err("Sube un CV o pega el texto directamente.")

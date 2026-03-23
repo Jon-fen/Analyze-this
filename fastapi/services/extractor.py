@@ -53,24 +53,61 @@ def scrape_job_url(url: str) -> str:
     return "\n".join(lines)[:8000]
 
 
+def _detect_columns(page):
+    """Return the X midpoint if the page has two columns, else None."""
+    words = page.extract_words()
+    if not words:
+        return None
+    x0, y0, x1, y1 = page.bbox
+    width = x1 - x0
+    left_words  = [w for w in words if w['x1'] < x0 + width * 0.5]
+    right_words = [w for w in words if w['x0'] > x0 + width * 0.5]
+    if left_words and right_words:
+        max_left  = max(w['x1'] for w in left_words)
+        min_right = min(w['x0'] for w in right_words)
+        if min_right - max_left > 15:
+            return (max_left + min_right) / 2
+    return None
+
+
 def extract_pdf(file_bytes: bytes) -> str:
     import io
     from .claude import _sanitize_cv_text
-    text_parts = []
+    text_pages = []
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
-            tables = page.extract_tables()
-            if tables:
-                for table in tables:
-                    for row in table:
-                        if row:
-                            cells = [str(c).strip() for c in row if c and str(c).strip()]
-                            if cells:
-                                text_parts.append("  |  ".join(cells))
-            t = page.extract_text()
-            if t:
-                text_parts.append(t)
-    return _sanitize_cv_text("\n".join(text_parts))
+            x0, y0, x1, y1 = page.bbox
+            split_x = _detect_columns(page)
+
+            if split_x:
+                # Two-column layout: extract each side separately
+                try:
+                    left  = page.crop((x0, y0, split_x, y1)).extract_text() or ''
+                    right = page.crop((split_x, y0, x1, y1)).extract_text() or ''
+                    page_text = left + '\n\n' + right
+                except Exception:
+                    page_text = page.extract_text() or ''
+            else:
+                # Single column: tables first, then text
+                parts = []
+                try:
+                    for table in (page.extract_tables() or []):
+                        for row in table:
+                            if row:
+                                cells = [str(c).strip() for c in row if c and str(c).strip()]
+                                if cells:
+                                    parts.append("  |  ".join(cells))
+                except Exception:
+                    pass
+                t = page.extract_text()
+                if t:
+                    parts.append(t)
+                page_text = '\n'.join(parts)
+
+            if page_text.strip():
+                text_pages.append(page_text)
+
+    return _sanitize_cv_text('\n\n'.join(text_pages))
 
 
 def extract_docx(file_bytes: bytes) -> str:
