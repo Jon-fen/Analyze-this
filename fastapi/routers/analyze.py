@@ -192,9 +192,10 @@ async def analyze(
     except Exception as e:
         return _err(f"Error al analizar con Claude: {e}")
 
-    # Store font prefs for download
+    # Store font prefs and filename for download
     cv_data["_font_family"] = font_family
     cv_data["_font_size"] = font_size
+    cv_data["_cv_filename"] = cv_filename
 
     result_id = _store_result(cv_data)
     score = cv_data.get("score_match", 0)
@@ -271,7 +272,7 @@ async def download(request: Request, result_id: str, fmt: str = "docx", template
     fs = cv_data.get("_font_size", 11.0)
 
     if fmt == "analysis_pdf":
-        buf = build_analysis_pdf(cv_data)
+        buf = build_analysis_pdf(cv_data, cv_filename=cv_data.get("_cv_filename", ""))
         filename = f"Analisis_ATS_{nombre}.pdf"
         media_type = "application/pdf"
     elif fmt == "docx":

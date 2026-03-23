@@ -469,7 +469,7 @@ def _md_to_story(content_text: str, styles: dict) -> list:
     return story
 
 
-def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> io.BytesIO:
+def build_branded_pdf(title: str, content_text: str, person_name: str = "", cv_filename: str = "") -> io.BytesIO:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
         leftMargin=2*cm, rightMargin=2*cm,
@@ -477,6 +477,7 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
 
     s_hdr       = ParagraphStyle("s_hdr",  fontName="Helvetica-Bold", fontSize=9,  textColor=_RL_LIGHT)
     s_title     = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=18, textColor=_RL_NAVY, spaceBefore=6, spaceAfter=14)
+    s_file      = ParagraphStyle("s_file",  fontName="Helvetica", fontSize=8, textColor=_RL_LIGHT, spaceAfter=4)
     s_body      = ParagraphStyle("s_body",  fontName="Helvetica", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
     s_bold      = ParagraphStyle("s_bold",  fontName="Helvetica-Bold", fontSize=10.5, textColor=_RL_DARK, leading=16, spaceAfter=6)
     s_section   = ParagraphStyle("s_section", fontName="Helvetica-Bold", fontSize=12, textColor=_RL_NAVY, spaceBefore=10, spaceAfter=4)
@@ -507,6 +508,8 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
     story.append(hdr_tbl)
     story.append(HRFlowable(width="100%", thickness=1.5, color=_RL_NAVY, spaceAfter=10))
     story.append(Paragraph(title, s_title))
+    if cv_filename:
+        story.append(Paragraph(f"CV: {cv_filename}", s_file))
     story.append(HRFlowable(width="100%", thickness=0.5, color=_RL_GOLD, spaceAfter=14))
 
     story.extend(_md_to_story(content_text, md_styles))
@@ -523,7 +526,7 @@ def build_branded_pdf(title: str, content_text: str, person_name: str = "") -> i
     return buf
 
 
-def build_analysis_pdf(cv_data: dict) -> io.BytesIO:
+def build_analysis_pdf(cv_data: dict, cv_filename: str = "") -> io.BytesIO:
     nombre  = cv_data.get("nombre", "Candidato")
     titulo  = cv_data.get("titulo_profesional", "")
     score   = cv_data.get("score_match", 0)
@@ -564,4 +567,4 @@ def build_analysis_pdf(cv_data: dict) -> io.BytesIO:
             lines.append(f"**{tip.get('categoria', '')}**")
             lines.append(tip.get("tip", ""))
             lines.append("")
-    return build_branded_pdf("Análisis de Compatibilidad ATS", "\n".join(lines), nombre)
+    return build_branded_pdf("Análisis de Compatibilidad ATS", "\n".join(lines), nombre, cv_filename=cv_filename)

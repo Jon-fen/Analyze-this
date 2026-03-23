@@ -111,13 +111,14 @@ async def tool_pdf(request: Request):
     except Exception:
         return JSONResponse({"ok": False, "error": "invalid body"}, status_code=400)
 
-    tool   = body.get("tool", "")
-    text   = body.get("text", "")
-    nombre = body.get("nombre", "")
+    tool        = body.get("tool", "")
+    text        = body.get("text", "")
+    nombre      = body.get("nombre", "")
+    cv_filename = body.get("cv_filename", "")
 
     title = TOOL_LABELS.get(tool, tool.capitalize())
     try:
-        buf = build_branded_pdf(title, text, nombre)
+        buf = build_branded_pdf(title, text, nombre, cv_filename=cv_filename)
         filename = f"{tool}_{nombre.replace(' ', '_')}.pdf"
         return StreamingResponse(
             buf,

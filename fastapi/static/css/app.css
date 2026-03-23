@@ -724,9 +724,12 @@ details[open] .coaching-chevron { transform: rotate(180deg); }
   flex: 1; text-align: center; padding: 8px; border-radius: 8px;
   font-size: 13px; font-weight: 500; text-decoration: none;
   background: #1E3A5F; color: white; border: none; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s, background 0.15s;
 }
 .btn-download-pdf { background: white; color: #1E3A5F; border: 1px solid #1E3A5F; }
-.btn-download:hover { opacity: 0.88; text-decoration: none; }
+.btn-download:hover { opacity: 0.85; transform: translateY(-1px); text-decoration: none; }
+.btn-download-pdf:hover { background: #F0F4F8; transform: translateY(-1px); }
+.btn-download:active, .btn-download-pdf:active { transform: translateY(0); opacity: 1; }
 .btn-download-locked { background: #F3F4F6; color: #9CA3AF; border: 1px solid #E5E7EB; cursor: pointer; }
 @media (max-width: 600px) { .template-grid { grid-template-columns: 1fr; } }
 
@@ -747,6 +750,26 @@ details[open] .coaching-chevron { transform: rotate(180deg); }
   cursor: pointer; white-space: nowrap;
 }
 .referral-hint { font-size: 11px; color: #6B7280; margin-top: 6px; }
+
+/* Share/copy action row — same height for button and anchor */
+.share-actions-row {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-top: 0.75rem; align-items: stretch;
+}
+.share-actions-row > * { flex: 1; }
+.btn-share {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 44px; padding: 0 20px; font-size: 14px; font-weight: 500;
+  border-radius: 10px; white-space: nowrap; box-sizing: border-box;
+  cursor: pointer; text-decoration: none; transition: opacity 0.15s, background 0.15s;
+}
+.btn-share-secondary {
+  background: var(--bg2); color: var(--text); border: 1.5px solid var(--border);
+}
+.btn-share-secondary:hover { background: var(--bg3); }
+.btn-share-linkedin {
+  background: #0A66C2; color: white; border: none;
+}
+.btn-share-linkedin:hover { opacity: 0.88; }
 
 /* Register CTA */
 .register-cta {
