@@ -29,12 +29,34 @@ def _sanitize_cv_text(text: str) -> str:
     return '\n'.join(lines).strip()
 
 
+def _clean_claude_json(raw: str) -> str:
+    """
+    Sanitize typographic chars that Claude reproduces from CV text inside JSON strings.
+    These are valid Unicode but can appear unescaped in ways that break json.loads.
+    """
+    # Typographic single quotes → straight apostrophe
+    raw = raw.replace("\u2018", "'").replace("\u2019", "'")
+    # Typographic double quotes → escaped double quote for JSON safety
+    raw = raw.replace("\u201c", '\\"').replace("\u201d", '\\"')
+    # Em/en dash → hyphen
+    raw = raw.replace("\u2013", "-").replace("\u2014", "-")
+    # Prime marks
+    raw = raw.replace("\u2032", "'").replace("\u2033", '"')
+    return raw
+
+
 def _parse_claude_response(raw: str) -> dict:
     """Robust JSON parser with three fallback strategies."""
     if "```json" in raw:
         raw = raw.split("```json")[1].split("```")[0].strip()
     elif "```" in raw:
         raw = raw.split("```")[1].split("```")[0].strip()
+
+    # Sanitize typographic characters in Claude's response before any parse attempt
+    raw = _clean_claude_json(raw)
+
+    import sys
+    print(f"[DEBUG parse] first 300 chars: {repr(raw[:300])}", file=sys.stderr, flush=True)
 
     # Attempt 1: direct parse
     try:
